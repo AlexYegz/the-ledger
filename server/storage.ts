@@ -13,8 +13,21 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import { eq, desc } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
+import { mkdirSync, existsSync, copyFileSync } from "node:fs";
+import { dirname } from "node:path";
 
-const sqlite = new Database("data.db");
+// DB path: use DATA_DIR if set (Railway volume), else local data.db.
+const DB_PATH = process.env.DATA_DIR
+  ? `${process.env.DATA_DIR.replace(/\/$/, "")}/ledger.db`
+  : "data.db";
+try {
+  mkdirSync(dirname(DB_PATH), { recursive: true });
+} catch {}
+// One-time migration: if volume DB is empty but a local data.db exists, copy it over.
+if (process.env.DATA_DIR && !existsSync(DB_PATH) && existsSync("data.db")) {
+  try { copyFileSync("data.db", DB_PATH); } catch {}
+}
+const sqlite = new Database(DB_PATH);
 sqlite.pragma("journal_mode = WAL");
 
 // Ensure tables exist (lightweight migrate-on-boot for dev/prod).
