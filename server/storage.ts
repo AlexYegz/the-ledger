@@ -42,7 +42,8 @@ CREATE TABLE IF NOT EXISTS items (
   last_touched_at INTEGER,
   sent_to_meeting_tracker_at INTEGER,
   meeting_tracker_id TEXT,
-  skip_count INTEGER NOT NULL DEFAULT 0
+  skip_count INTEGER NOT NULL DEFAULT 0,
+  principal_note TEXT
 );
 CREATE TABLE IF NOT EXISTS notes (
   id TEXT PRIMARY KEY,
@@ -62,6 +63,17 @@ CREATE TABLE IF NOT EXISTS activity_log (
 CREATE INDEX IF NOT EXISTS idx_notes_item ON notes(item_id);
 CREATE INDEX IF NOT EXISTS idx_activity_item ON activity_log(item_id);
 `);
+
+// Migrations for existing DBs: add new columns idempotently.
+try {
+  const cols = sqlite.prepare("PRAGMA table_info(items)").all() as { name: string }[];
+  const has = (name: string) => cols.some((c) => c.name === name);
+  if (!has("principal_note")) {
+    sqlite.exec("ALTER TABLE items ADD COLUMN principal_note TEXT;");
+  }
+} catch {
+  // best-effort
+}
 
 export const db = drizzle(sqlite);
 

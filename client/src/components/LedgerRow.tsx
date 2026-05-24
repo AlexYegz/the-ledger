@@ -187,6 +187,27 @@ export function LedgerRow({
                   {d.label.toUpperCase()}
                 </button>
               ))}
+              {item.decision && (
+                <button
+                  className="btn-undo-decision"
+                  onClick={() => {
+                    if (
+                      confirm(
+                        "Revert Joe's call back to awaiting Joe? This will be logged.",
+                      )
+                    ) {
+                      patchMut.mutate({
+                        decision: null,
+                        delegate_to: null,
+                      } as any);
+                    }
+                  }}
+                  data-testid={`button-undo-decision-${item.id}`}
+                  title="Revert to awaiting Joe"
+                >
+                  ↶ UNDO CALL
+                </button>
+              )}
             </div>
           )}
 

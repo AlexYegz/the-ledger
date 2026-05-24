@@ -352,17 +352,26 @@ body {
   font-family: 'Lemon Milk', sans-serif; font-size: 10px; letter-spacing: 0.16em;
 }
 
-.flame-icon { width: 28px; height: 28px; flex-shrink: 0; }
-.flame-icon img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.flame-tag {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-family: 'Lemon Milk', sans-serif; font-size: 9px; letter-spacing: 0.16em;
-  color: var(--decline);
-  background: var(--decline-dim);
-  padding: 4px 9px;
-  border-radius: 999px;
+.flame-icon {
+  width: 28px; height: 28px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: default;
 }
-.flame-tag .flame-icon { width: 14px; height: 14px; }
+.flame-icon img {
+  width: 100%; height: 100%; object-fit: contain; display: block;
+  filter: drop-shadow(0 0 6px rgba(255, 92, 122, 0.45));
+  transition: transform 140ms ease, filter 140ms ease;
+}
+.flame-icon:hover img {
+  transform: scale(1.08);
+  filter: drop-shadow(0 0 10px rgba(255, 92, 122, 0.7));
+}
+.flame-icon-lg { width: 44px; height: 44px; }
+.flame-icon-lg img {
+  filter: drop-shadow(0 0 10px rgba(255, 92, 122, 0.55));
+}
+/* Backwards-compat alias used by older markup; same as the icon. */
+.flame-tag { display: inline-flex; }
 
 .card-meta-row {
   display: flex; flex-direction: column; gap: 4px; text-align: right;
@@ -590,8 +599,15 @@ body {
   color: var(--text-mid);
   display: flex; align-items: center; gap: 8px;
 }
-.row-flame { width: 18px; height: 18px; flex-shrink: 0; }
-.row-flame img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.row-flame {
+  width: 22px; height: 22px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-right: 4px;
+}
+.row-flame img {
+  width: 100%; height: 100%; object-fit: contain; display: block;
+  filter: drop-shadow(0 0 4px rgba(255, 92, 122, 0.5));
+}
 
 .row-main { min-width: 0; }
 .row-main .sender { font-weight: 400; color: var(--text-mid); margin-bottom: 6px; font-size: 13px; overflow: hidden; text-overflow: ellipsis; }
@@ -959,3 +975,101 @@ body {
 
 /* radix popover surfaces */
 [data-radix-popper-content-wrapper] { z-index: 60 !important; }
+
+/* ============================================================
+   Answered shelf (session-local list of cards Joe has decided on)
+   ============================================================ */
+.answered-shelf {
+  margin-top: 18px;
+  border-top: 1px solid var(--border-c);
+  padding-top: 14px;
+}
+.answered-shelf-label {
+  font-family: 'Lemon Milk', sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+.answered-row {
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+.answered-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 10px 6px 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-c);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 140ms ease, box-shadow 140ms ease;
+  font-size: 11px;
+  max-width: 240px;
+  min-width: 0;
+}
+.answered-chip:hover {
+  transform: translateY(-1px);
+  border-color: var(--neon);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+.answered-chip-dot {
+  width: 10px; height: 10px; border-radius: 999px; flex-shrink: 0;
+}
+.answered-chip-dot.action { background: var(--action); }
+.answered-chip-dot.decline { background: var(--decline); }
+.answered-chip-dot.respond { background: var(--respond); }
+.answered-chip-dot.delegate { background: var(--delegate); }
+.answered-chip-name {
+  font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--text);
+}
+.answered-chip-dec {
+  font-family: 'Lemon Milk', sans-serif; font-size: 8.5px; letter-spacing: 0.14em;
+  color: var(--text-dim);
+}
+
+/* Joe's note textarea on the card */
+.principal-note-block {
+  margin-top: 14px;
+}
+.principal-note-block label {
+  font-family: 'Lemon Milk', sans-serif;
+  font-size: 9.5px; letter-spacing: 0.16em;
+  color: var(--text-dim);
+  display: block; margin-bottom: 6px;
+}
+.principal-note-block textarea {
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-c);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+.principal-note-block textarea:focus {
+  outline: none;
+  border-color: var(--neon);
+  box-shadow: 0 0 0 1px var(--neon-dim);
+}
+
+/* Undo decision button (workspace expanded row) */
+.btn-undo-decision {
+  font-family: 'Lemon Milk', sans-serif;
+  font-size: 9.5px; letter-spacing: 0.16em;
+  background: transparent;
+  border: 1px dashed var(--border-c);
+  color: var(--text-dim);
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+.btn-undo-decision:hover {
+  color: var(--text);
+  border-color: var(--text-dim);
+  border-style: solid;
+}

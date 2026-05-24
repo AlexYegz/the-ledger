@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { TopBar } from "@/components/TopBar";
-import { CategoryPill, FlameTag, FlameIcon } from "@/components/Bits";
+import { CategoryPill, FlameTag } from "@/components/Bits";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Item } from "@shared/schema";
 
@@ -14,12 +14,31 @@ const PILE_LABEL: Record<Pile, string> = {
   ts: "TIME SENSITIVE FIRST",
 };
 
+const DECISION_DOT: Record<string, string> = {
+  team_to_action: "action",
+  team_to_decline: "decline",
+  principal_to_respond: "respond",
+  delegate: "delegate",
+};
+const DECISION_SHORT: Record<string, string> = {
+  team_to_action: "TEAM TO ACTION",
+  team_to_decline: "TEAM TO DECLINE",
+  principal_to_respond: "I'LL RESPOND",
+  delegate: "DELEGATE",
+};
+
+function plural(n: number, word: string) {
+  return `${n} ${word}${n === 1 ? "" : "S"}`;
+}
+
 export default function AnswerPage() {
   const [pile, setPile] = useState<Pile>("one");
-  const [skipped, setSkipped] = useState<Set<string>>(new Set());
+  // Session-local order: ids of cards that have been skipped (sent to back).
+  const [skipOrder, setSkipOrder] = useState<string[]>([]);
+  // Session-local order of decisions (so the shelf shows them in the order Joe answered).
+  const [answeredOrder, setAnsweredOrder] = useState<string[]>([]);
   const [delegating, setDelegating] = useState<string | null>(null);
   const [delegateName, setDelegateName] = useState("");
-  const [decidedToday, setDecidedToday] = useState(0);
 
   const itemsQ = useQuery<Item[]>({ queryKey: ["/api/items"] });
   const cfgQ = useQuery<{ internalDomains: string[] }>({ queryKey: ["/api/config"] });
@@ -40,7 +59,6 @@ export default function AnswerPage() {
       return r.json();
     },
     onSuccess: () => {
-      setDecidedToday((n) => n + 1);
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
     },
   });
@@ -53,14 +71,27 @@ export default function AnswerPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/items"] }),
   });
 
-  // Pending items (no decision yet, not skipped in this session)
-  const pending = useMemo(
-    () =>
-      (itemsQ.data || []).filter(
-        (i) => !i.decision && !skipped.has(i.id),
-      ),
-    [itemsQ.data, skipped],
-  );
+  const allItems = itemsQ.data || [];
+
+  // Pending = no decision yet. Order: base order, but with skipped IDs moved to the back
+  // in the order they were skipped.
+  const pending = useMemo(() => {
+    const base = allItems.filter((i) => !i.decision);
+    const skipSet = new Set(skipOrder);
+    const head = base.filter((i) => !skipSet.has(i.id));
+    const tail = skipOrder
+      .map((id) => base.find((i) => i.id === id))
+      .filter((x): x is Item => !!x);
+    return [...head, ...tail];
+  }, [allItems, skipOrder]);
+
+  // Answered cards Joe has decided on this session (oldest decision first).
+  const answered = useMemo(() => {
+    const map = new Map(allItems.map((i) => [i.id, i]));
+    return answeredOrder
+      .map((id) => map.get(id))
+      .filter((x): x is Item => !!x && !!x.decision);
+  }, [allItems, answeredOrder]);
 
   const piles = useMemo<{ label: string; items: Item[] }[]>(() => {
     if (pending.length === 0) return [];
@@ -79,7 +110,6 @@ export default function AnswerPage() {
       if (external.length) r.push({ label: "EXTERNAL", items: external });
       return r;
     }
-    // by category
     const groups: Record<string, Item[]> = {};
     for (const i of pending) (groups[i.category] = groups[i.category] || []).push(i);
     return Object.entries(groups).map(([cat, items]) => ({
@@ -88,34 +118,59 @@ export default function AnswerPage() {
     }));
   }, [pending, pile, cfgQ.data]);
 
-  const handleDecision = (item: Item, decision: string) => {
+  const recordAnswered = useCallback((id: string) => {
+    setAnsweredOrder((prev) => {
+      if (prev.includes(id)) return prev;
+      return [...prev, id];
+    });
+  }, []);
+
+  const handleDecision = (item: Item, decision: string, note?: string) => {
     if (decision === "delegate") {
       setDelegating(item.id);
       setDelegateName("");
       return;
     }
-    patchMut.mutate({ id: item.id, patch: { decision, delegate_to: null } });
+    const patch: any = { decision, delegate_to: null };
+    if (note && note.trim()) patch.principal_note = note.trim();
+    patchMut.mutate({ id: item.id, patch });
+    recordAnswered(item.id);
   };
 
-  const confirmDelegate = (item: Item) => {
+  const confirmDelegate = (item: Item, note?: string) => {
     if (!delegateName.trim()) return;
-    patchMut.mutate({
-      id: item.id,
-      patch: { decision: "delegate", delegate_to: delegateName.trim() },
-    });
+    const patch: any = {
+      decision: "delegate",
+      delegate_to: delegateName.trim(),
+    };
+    if (note && note.trim()) patch.principal_note = note.trim();
+    patchMut.mutate({ id: item.id, patch });
+    recordAnswered(item.id);
     setDelegating(null);
     setDelegateName("");
   };
 
   const handleSkip = (item: Item) => {
-    setSkipped((prev) => {
-      const next = new Set(prev);
-      next.add(item.id);
-      return next;
+    setSkipOrder((prev) => {
+      // remove if already in queue, then push to back
+      const filtered = prev.filter((id) => id !== item.id);
+      return [...filtered, item.id];
     });
     skipMut.mutate(item.id);
   };
 
+  const handleReopen = (item: Item) => {
+    // Clear decision on the server, drop from answered-order so it falls back into pending.
+    patchMut.mutate({
+      id: item.id,
+      patch: { decision: null, delegate_to: null },
+    });
+    setAnsweredOrder((prev) => prev.filter((id) => id !== item.id));
+    // Move to front of pending: remove from skipOrder if present.
+    setSkipOrder((prev) => prev.filter((id) => id !== item.id));
+  };
+
+  const decidedToday = answered.length;
   const totalToday = pending.length + decidedToday;
   const progressPct = totalToday > 0 ? (decidedToday / totalToday) * 100 : 0;
 
@@ -127,7 +182,8 @@ export default function AnswerPage() {
         <div className="section-title">ANSWER MODE</div>
         <div className="section-sub">
           Card stack for clearing the queue. Tap a decision, next card appears.
-          Skip moves the card to the back.
+          Skip moves the card to the back of the deck. Answered cards stack to
+          the side. Click one to change your call.
         </div>
       </div>
 
@@ -135,7 +191,7 @@ export default function AnswerPage() {
         <div>
           <div className="queue-meta" data-testid="queue-meta">
             <span>
-              <span className="count">{pending.length} ITEMS</span> AWAITING YOUR CALL
+              <span className="count">{plural(pending.length, "ITEM")}</span> AWAITING YOUR CALL
             </span>
           </div>
           <div className="pile-picker" data-testid="pile-picker">
@@ -195,6 +251,44 @@ export default function AnswerPage() {
               </div>
             )}
           </div>
+
+          {answered.length > 0 && (
+            <div className="answered-shelf" data-testid="answered-shelf">
+              <div className="answered-shelf-label">
+                ANSWERED THIS SESSION · {answered.length} · CLICK TO CHANGE
+              </div>
+              <div className="answered-row">
+                {answered.map((item) => {
+                  const dotClass = item.decision
+                    ? DECISION_DOT[item.decision] || "action"
+                    : "action";
+                  const short = item.decision
+                    ? DECISION_SHORT[item.decision] || ""
+                    : "";
+                  return (
+                    <div
+                      key={item.id}
+                      className="answered-chip"
+                      onClick={() => handleReopen(item)}
+                      title="Click to bring this card back and change your call"
+                      data-testid={`answered-chip-${item.id}`}
+                    >
+                      <span className={`answered-chip-dot ${dotClass}`} />
+                      <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                        <span className="answered-chip-name">{item.sender_name}</span>
+                        <span className="answered-chip-dec">
+                          {short}
+                          {item.decision === "delegate" && item.delegate_to
+                            ? ` → ${item.delegate_to.toUpperCase()}`
+                            : ""}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         <aside className="side-rail">
@@ -231,12 +325,12 @@ function CardStack({
   total,
 }: {
   items: Item[];
-  onDecide: (item: Item, decision: string) => void;
+  onDecide: (item: Item, decision: string, note?: string) => void;
   onSkip: (item: Item) => void;
   delegating: string | null;
   delegateName: string;
   setDelegateName: (v: string) => void;
-  confirmDelegate: (item: Item) => void;
+  confirmDelegate: (item: Item, note?: string) => void;
   cancelDelegate: () => void;
   compact?: boolean;
   index?: number;
@@ -252,6 +346,10 @@ function CardStack({
   const front = items[0];
   const behind1 = items[1];
   const behind2 = items[2];
+
+  const positionStr = total
+    ? `CARD ${index + 1} / ${total}`
+    : `${plural(items.length, "CARD")} TO GO`;
 
   return (
     <div className="card-stack" data-testid="card-stack" style={compact ? { maxWidth: 480 } : undefined}>
@@ -269,13 +367,13 @@ function CardStack({
         >
           <CardFront
             item={front}
-            position={total ? `CARD ${index + 1} / ${total}` : `${items.length} TO GO`}
+            position={positionStr}
             onDecide={onDecide}
             onSkip={onSkip}
             delegating={delegating === front.id}
             delegateName={delegateName}
             setDelegateName={setDelegateName}
-            confirmDelegate={() => confirmDelegate(front)}
+            confirmDelegate={(note) => confirmDelegate(front, note)}
             cancelDelegate={cancelDelegate}
           />
         </motion.div>
@@ -297,14 +395,16 @@ function CardFront({
 }: {
   item: Item;
   position: string;
-  onDecide: (item: Item, decision: string) => void;
+  onDecide: (item: Item, decision: string, note?: string) => void;
   onSkip: (item: Item) => void;
   delegating: boolean;
   delegateName: string;
   setDelegateName: (v: string) => void;
-  confirmDelegate: () => void;
+  confirmDelegate: (note?: string) => void;
   cancelDelegate: () => void;
 }) {
+  const [note, setNote] = useState(item.principal_note || "");
+
   let implied: Record<string, string> = {};
   try {
     implied = item.implied_action ? JSON.parse(item.implied_action) : {};
@@ -351,10 +451,21 @@ function CardFront({
         </div>
       )}
 
+      <div className="principal-note-block">
+        <label htmlFor={`pn-${item.id}`}>NOTES FOR THE TEAM (OPTIONAL)</label>
+        <textarea
+          id={`pn-${item.id}`}
+          placeholder="Anything they should know before they action this?"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          data-testid={`input-principal-note-${item.id}`}
+        />
+      </div>
+
       <div className="decision-row">
         <button
           className="btn-decide action"
-          onClick={() => onDecide(item, "team_to_action")}
+          onClick={() => onDecide(item, "team_to_action", note)}
           data-testid={`decide-action-${item.id}`}
         >
           <div className="btn-decide-stack">
@@ -365,7 +476,7 @@ function CardFront({
         </button>
         <button
           className="btn-decide decline"
-          onClick={() => onDecide(item, "team_to_decline")}
+          onClick={() => onDecide(item, "team_to_decline", note)}
           data-testid={`decide-decline-${item.id}`}
         >
           <div className="btn-decide-stack">
@@ -376,7 +487,7 @@ function CardFront({
         </button>
         <button
           className="btn-decide respond"
-          onClick={() => onDecide(item, "principal_to_respond")}
+          onClick={() => onDecide(item, "principal_to_respond", note)}
           data-testid={`decide-respond-${item.id}`}
         >
           <div className="btn-decide-stack">
@@ -387,7 +498,7 @@ function CardFront({
         </button>
         <button
           className="btn-decide delegate"
-          onClick={() => onDecide(item, "delegate")}
+          onClick={() => onDecide(item, "delegate", note)}
           data-testid={`decide-delegate-${item.id}`}
         >
           <div className="btn-decide-stack">
@@ -405,13 +516,13 @@ function CardFront({
             value={delegateName}
             onChange={(e) => setDelegateName(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") confirmDelegate();
+              if (e.key === "Enter") confirmDelegate(note);
               if (e.key === "Escape") cancelDelegate();
             }}
             autoFocus
             data-testid={`input-delegate-${item.id}`}
           />
-          <button onClick={confirmDelegate} data-testid={`confirm-delegate-${item.id}`}>CONFIRM</button>
+          <button onClick={() => confirmDelegate(note)} data-testid={`confirm-delegate-${item.id}`}>CONFIRM</button>
         </div>
       )}
 

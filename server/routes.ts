@@ -262,8 +262,20 @@ export async function registerRoutes(
     const ownerChanging =
       patch.owner !== undefined && patch.owner !== existing.owner;
 
+    const undoingDecision =
+      decisionChanging &&
+      (patch.decision === null || patch.decision === "") &&
+      existing.decision !== null;
+    const principalNoteChanging =
+      patch.principal_note !== undefined &&
+      (patch.principal_note || null) !== (existing.principal_note || null);
+
     if (decisionChanging) {
-      patch.decided_at = now;
+      patch.decided_at = undoingDecision ? null : now;
+      if (undoingDecision) {
+        // Wipe delegate name when reverting to awaiting Joe.
+        patch.delegate_to = null;
+      }
     }
     patch.last_touched_by = actor;
     patch.last_touched_at = now;
@@ -272,23 +284,53 @@ export async function registerRoutes(
     if (!updated) return res.status(500).json({ message: "update failed" });
 
     if (decisionChanging) {
+      if (undoingDecision) {
+        storage.logActivity({
+          item_id: updated.id,
+          actor,
+          event: "decision_undone",
+          detail: JSON.stringify({
+            from: existing.decision,
+            from_delegate: existing.delegate_to,
+          }),
+        });
+        storage.createNote({
+          item_id: updated.id,
+          author: "system",
+          body: `${actor} reverted Joe's call. Back to awaiting Joe.`,
+        });
+      } else {
+        storage.logActivity({
+          item_id: updated.id,
+          actor,
+          event: "decision_made",
+          detail: JSON.stringify({
+            decision: updated.decision,
+            delegate_to: updated.delegate_to,
+          }),
+        });
+        const decisionLabel = labelDecision(
+          updated.decision,
+          updated.delegate_to,
+        );
+        storage.createNote({
+          item_id: updated.id,
+          author: "system",
+          body: `Joe's call: ${decisionLabel}.`,
+        });
+      }
+    }
+    if (principalNoteChanging && updated.principal_note) {
       storage.logActivity({
         item_id: updated.id,
         actor,
-        event: "decision_made",
-        detail: JSON.stringify({
-          decision: updated.decision,
-          delegate_to: updated.delegate_to,
-        }),
+        event: "principal_note_added",
+        detail: null,
       });
-      const decisionLabel = labelDecision(
-        updated.decision,
-        updated.delegate_to,
-      );
       storage.createNote({
         item_id: updated.id,
-        author: "system",
-        body: `Joe's call: ${decisionLabel}.`,
+        author: "joe",
+        body: updated.principal_note,
       });
     }
     if (statusChanging) {
@@ -311,6 +353,7 @@ export async function registerRoutes(
     // Fire-and-forget Meeting Tracker handoff
     if (
       decisionChanging &&
+      !undoingDecision &&
       updated.decision === "team_to_action" &&
       updated.category === "meeting_request" &&
       !updated.sent_to_meeting_tracker_at

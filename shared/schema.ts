@@ -31,6 +31,7 @@ export const items = sqliteTable("items", {
   sent_to_meeting_tracker_at: integer("sent_to_meeting_tracker_at"),
   meeting_tracker_id: text("meeting_tracker_id"),
   skip_count: integer("skip_count").notNull().default(0),
+  principal_note: text("principal_note"),
 });
 
 export const insertItemSchema = createInsertSchema(items).omit({

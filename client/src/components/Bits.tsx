@@ -2,21 +2,32 @@ import flameUrl from "@assets/time_sensitive_flame.png";
 import { CATEGORY_LABEL, CATEGORY_VAR, STATUS_CLASS, STATUS_LABEL, DECISION_LABEL, DECISION_CLASS, decisionTagLabel } from "@/lib/labels";
 import type { Category, Decision, Status } from "@shared/schema";
 
-export function FlameIcon({ className = "flame-icon", title }: { className?: string; title?: string }) {
+export function FlameIcon({
+  className = "flame-icon",
+  title,
+  size,
+}: {
+  className?: string;
+  title?: string;
+  size?: number;
+}) {
+  const style = size ? { width: size, height: size } : undefined;
   return (
-    <span className={className} aria-label={title || "Time sensitive"} title={title || "Time sensitive"}>
+    <span
+      className={className}
+      aria-label={title || "Time sensitive"}
+      title={title || "Time sensitive"}
+      data-testid="flame-icon"
+      style={style}
+    >
       <img src={flameUrl} alt="" />
     </span>
   );
 }
 
+// Backwards-compat: same icon, just bigger. Used on cards.
 export function FlameTag() {
-  return (
-    <span className="flame-tag" data-testid="flame-tag">
-      <FlameIcon />
-      TIME SENSITIVE
-    </span>
-  );
+  return <FlameIcon className="flame-icon flame-icon-lg" />;
 }
 
 export function CategoryPill({ category }: { category: string }) {
@@ -62,7 +73,7 @@ export function OwnerAvatar({ owner }: { owner: string | null | undefined }) {
   if (!owner) {
     return (
       <span className="owner-avatar" style={{ opacity: 0.5 }}>
-        —
+        ?
       </span>
     );
   }
