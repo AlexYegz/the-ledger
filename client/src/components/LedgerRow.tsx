@@ -124,7 +124,21 @@ export function LedgerRow({
       onClick={() => setExpanded((v) => !v)}
     >
       <div className="row-date">
-        {item.is_time_sensitive ? <FlameIcon className="row-flame" /> : null}
+        {readOnly ? (
+          item.is_time_sensitive ? <FlameIcon className="row-flame" /> : null
+        ) : (
+          <button
+            className={`row-flame-toggle ${item.is_time_sensitive ? "on" : "off"}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              patchMut.mutate({ is_time_sensitive: item.is_time_sensitive ? 0 : 1 } as any);
+            }}
+            title={item.is_time_sensitive ? "Time-sensitive (click to remove)" : "Mark as time-sensitive"}
+            data-testid={`button-toggle-ts-${item.id}`}
+          >
+            <FlameIcon className="flame-icon" />
+          </button>
+        )}
         {fmtDate(item.date_received)}
       </div>
 
@@ -639,6 +653,10 @@ function humanizeActivity(a: Activity): string {
       return `${who} skipped this card.`;
     case "created_manual":
       return `${who} created this item.`;
+    case "time_sensitive_changed": {
+      if (detail?.to) return `${who} marked this time-sensitive.`;
+      return `${who} removed the time-sensitive flag.`;
+    }
     case "parsed":
       return `${who} parsed this from an email.`;
     default:

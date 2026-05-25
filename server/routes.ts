@@ -330,6 +330,9 @@ export async function registerRoutes(
       patch.team_note_for_principal !== undefined &&
       (patch.team_note_for_principal || null) !==
         (existing.team_note_for_principal || null);
+    const timeSensitiveChanging =
+      patch.is_time_sensitive !== undefined &&
+      !!patch.is_time_sensitive !== !!existing.is_time_sensitive;
 
     if (decisionChanging) {
       patch.decided_at = undoingDecision ? null : now;
@@ -408,6 +411,14 @@ export async function registerRoutes(
         actor,
         event: "team_note_changed",
         detail: JSON.stringify({ action, value: newVal }),
+      });
+    }
+    if (timeSensitiveChanging) {
+      storage.logActivity({
+        item_id: updated.id,
+        actor,
+        event: "time_sensitive_changed",
+        detail: JSON.stringify({ to: !!updated.is_time_sensitive }),
       });
     }
 

@@ -724,6 +724,35 @@ body {
   filter: drop-shadow(0 0 4px rgba(255, 92, 122, 0.5));
 }
 
+/* Clickable time-sensitive toggle in workspace rows */
+.row-flame-toggle {
+  width: 22px; height: 22px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-right: 4px;
+  padding: 0; background: transparent; border: 0;
+  cursor: pointer; border-radius: 6px;
+  transition: background 120ms ease, transform 120ms ease, opacity 120ms ease;
+}
+.row-flame-toggle:hover { background: rgba(255, 255, 255, 0.06); }
+.row-flame-toggle:active { transform: scale(0.92); }
+.row-flame-toggle .flame-icon {
+  width: 18px; height: 18px;
+  display: block; object-fit: contain;
+  transition: filter 160ms ease, opacity 160ms ease;
+}
+.row-flame-toggle.on .flame-icon {
+  opacity: 1;
+  filter: drop-shadow(0 0 4px rgba(255, 92, 122, 0.55));
+}
+.row-flame-toggle.off .flame-icon {
+  opacity: 0.28;
+  filter: grayscale(0.85) brightness(0.85);
+}
+.row-flame-toggle.off:hover .flame-icon {
+  opacity: 0.7;
+  filter: grayscale(0.4) brightness(1);
+}
+
 .row-main { min-width: 0; }
 .row-main .sender { font-weight: 400; color: var(--text-mid); margin-bottom: 6px; font-size: 13px; overflow: hidden; text-overflow: ellipsis; }
 .row-main .sender b { font-weight: 700; color: var(--text); }
