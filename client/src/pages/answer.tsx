@@ -411,10 +411,6 @@ function CardFront({
 }) {
   const [note, setNote] = useState(item.principal_note || "");
 
-  let implied: Record<string, string> = {};
-  try {
-    implied = item.implied_action ? JSON.parse(item.implied_action) : {};
-  } catch {}
   const received = new Date(item.date_received + "T00:00:00").toLocaleString("en-US", {
     month: "short",
     day: "2-digit",
@@ -474,10 +470,7 @@ function CardFront({
           onClick={() => onDecide(item, "team_to_action", note)}
           data-testid={`decide-action-${item.id}`}
         >
-          <div className="btn-decide-stack">
-            <span className="btn-decide-label">TEAM TO ACTION</span>
-            {implied.team_to_action && <span className="btn-decide-sub">{implied.team_to_action}</span>}
-          </div>
+          <span className="btn-decide-label">TEAM TO ACTION</span>
           <span className="arrow">→</span>
         </button>
         <button
@@ -485,10 +478,7 @@ function CardFront({
           onClick={() => onDecide(item, "team_to_decline", note)}
           data-testid={`decide-decline-${item.id}`}
         >
-          <div className="btn-decide-stack">
-            <span className="btn-decide-label">TEAM TO DECLINE</span>
-            {implied.team_to_decline && <span className="btn-decide-sub">{implied.team_to_decline}</span>}
-          </div>
+          <span className="btn-decide-label">TEAM TO DECLINE</span>
           <span className="arrow">→</span>
         </button>
         <button
@@ -496,10 +486,7 @@ function CardFront({
           onClick={() => onDecide(item, "principal_to_respond", note)}
           data-testid={`decide-respond-${item.id}`}
         >
-          <div className="btn-decide-stack">
-            <span className="btn-decide-label">I'LL RESPOND</span>
-            {implied.principal_to_respond && <span className="btn-decide-sub">{implied.principal_to_respond}</span>}
-          </div>
+          <span className="btn-decide-label">I'LL RESPOND</span>
           <span className="arrow">→</span>
         </button>
         <button
@@ -507,10 +494,7 @@ function CardFront({
           onClick={() => onDecide(item, "delegate", note)}
           data-testid={`decide-delegate-${item.id}`}
         >
-          <div className="btn-decide-stack">
-            <span className="btn-decide-label">DELEGATE TO…</span>
-            {implied.delegate && <span className="btn-decide-sub">{implied.delegate}</span>}
-          </div>
+          <span className="btn-decide-label">DELEGATE TO…</span>
           <span className="arrow">→</span>
         </button>
       </div>
