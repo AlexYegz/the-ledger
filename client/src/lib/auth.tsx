@@ -9,7 +9,7 @@ export type AuthMe = {
 type Ctx = {
   me: AuthMe;
   isLoading: boolean;
-  refetch: () => void;
+  refetch: () => Promise<AuthMe | undefined>;
 };
 
 const AuthCtx = createContext<Ctx>({
@@ -28,7 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         me: q.data || { role: null, identity: null },
         isLoading: q.isLoading,
-        refetch: () => q.refetch(),
+        refetch: async () => (await q.refetch()).data,
       }}
     >
       {children}

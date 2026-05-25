@@ -128,12 +128,6 @@ async function sendToMeetingTracker(item: any, actor: string) {
       sent_to_meeting_tracker_at: Date.now(),
       meeting_tracker_id: trackerId,
     });
-    const stamp = new Date().toLocaleString();
-    storage.createNote({
-      item_id: item.id,
-      author: "system",
-      body: `Sent to Meeting Tracker · ${stamp}${trackerId ? ` · id ${trackerId}` : ""}`,
-    });
     storage.logActivity({
       item_id: item.id,
       actor,
@@ -142,11 +136,6 @@ async function sendToMeetingTracker(item: any, actor: string) {
     });
   } catch (err: any) {
     const msg = err?.message || String(err);
-    storage.createNote({
-      item_id: item.id,
-      author: "system",
-      body: `Failed to send to Meeting Tracker · ${msg}. Click to retry.`,
-    });
     storage.logActivity({
       item_id: item.id,
       actor,
@@ -294,11 +283,6 @@ export async function registerRoutes(
             from_delegate: existing.delegate_to,
           }),
         });
-        storage.createNote({
-          item_id: updated.id,
-          author: "system",
-          body: `${actor} reverted Joe's call. Back to awaiting Joe.`,
-        });
       } else {
         storage.logActivity({
           item_id: updated.id,
@@ -308,15 +292,6 @@ export async function registerRoutes(
             decision: updated.decision,
             delegate_to: updated.delegate_to,
           }),
-        });
-        const decisionLabel = labelDecision(
-          updated.decision,
-          updated.delegate_to,
-        );
-        storage.createNote({
-          item_id: updated.id,
-          author: "system",
-          body: `Joe's call: ${decisionLabel}.`,
         });
       }
     }

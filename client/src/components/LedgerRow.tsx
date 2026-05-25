@@ -211,14 +211,18 @@ export function LedgerRow({
             </div>
           )}
 
+          {(() => {
+            const humanNotes = (notesQ.data || []).filter((n) => n.author !== "system");
+            return (
+          <>
           <button
             className={`notes-toggle ${notesOpen ? "open" : ""}`}
             onClick={() => setNotesOpen((v) => !v)}
             data-testid={`button-notes-toggle-${item.id}`}
           >
             <span className="chevron">▶</span> NOTES{" "}
-            {notesQ.data && notesQ.data.length > 0 ? (
-              <span className="badge">{notesQ.data.length}</span>
+            {humanNotes.length > 0 ? (
+              <span className="badge">{humanNotes.length}</span>
             ) : null}
           </button>
 
@@ -226,12 +230,12 @@ export function LedgerRow({
             <div className="notes-thread">
               {notesQ.isLoading ? (
                 <div style={{ color: "var(--text-dim)", fontSize: 12 }}>Loading notes…</div>
-              ) : (notesQ.data || []).length === 0 ? (
+              ) : humanNotes.length === 0 ? (
                 <div style={{ color: "var(--text-dim)", fontSize: 12, marginBottom: 10 }}>
                   No notes yet.
                 </div>
               ) : (
-                (notesQ.data || []).map((n) => (
+                humanNotes.map((n) => (
                   <div className="note-item" key={n.id}>
                     <div className={`avatar ${n.author}`}>{n.author[0]?.toUpperCase() || "·"}</div>
                     <div className="note-body">
@@ -267,6 +271,9 @@ export function LedgerRow({
               )}
             </div>
           )}
+          </>
+            );
+          })()}
         </div>
       )}
     </div>
@@ -356,30 +363,97 @@ function StatusSelect({
   );
 }
 
+// Resolve activity actor to a stable display label and bubble initial.
+// 'joe' (principal), 'meghan' / 'alexandra' (team), or 'system' for anything else / unknown.
+function actorDisplay(actor: string): { name: string; initial: string; key: string } {
+  const a = (actor || "").toLowerCase();
+  if (a === "joe") return { name: "JOE", initial: "J", key: "joe" };
+  if (a === "meghan") return { name: "MEGHAN", initial: "M", key: "meghan" };
+  if (a === "alexandra") return { name: "ALEXANDRA", initial: "A", key: "alexandra" };
+  return { name: "SYSTEM", initial: "S", key: "system" };
+}
+
+const DECISION_LABELS: Record<string, string> = {
+  team_to_action: "Team to action",
+  team_to_decline: "Team to decline",
+  principal_to_respond: "Joe to respond",
+  delegate: "Delegate",
+};
+
+// Turn a raw activity row into a single human sentence.
+// Best-effort: unknown event types fall through to a readable default.
+function humanizeActivity(a: Activity): string {
+  let detail: any = null;
+  if (a.detail) {
+    try { detail = JSON.parse(a.detail); } catch { detail = null; }
+  }
+  const who = actorDisplay(a.actor).name === "SYSTEM" ? "System" : actorDisplay(a.actor).name.charAt(0) + actorDisplay(a.actor).name.slice(1).toLowerCase();
+  switch (a.event) {
+    case "decision_made": {
+      const label = DECISION_LABELS[detail?.decision] || "set a call";
+      const dele = detail?.delegate_to ? ` (→ ${detail.delegate_to})` : "";
+      return `${who} set Joe's call to ${label}${dele}.`;
+    }
+    case "decision_undone": {
+      const from = DECISION_LABELS[detail?.from] || "the previous call";
+      return `${who} reverted ${from} back to awaiting Joe.`;
+    }
+    case "principal_note_added":
+      return `${who} added a note.`;
+    case "note_added":
+      return `${who} added a note.`;
+    case "owner_changed": {
+      const to = detail?.to ? detail.to : "unassigned";
+      return `${who} assigned this to ${to.charAt(0).toUpperCase() + to.slice(1)}.`;
+    }
+    case "status_changed": {
+      const to = (detail?.to || "").replace(/_/g, " ");
+      return to ? `${who} changed status to ${to}.` : `${who} changed status.`;
+    }
+    case "sent_to_meeting_tracker":
+      return `Sent to Meeting Tracker${detail?.trackerId ? ` (id ${detail.trackerId})` : ""}.`;
+    case "meeting_tracker_failed":
+      return `Failed to send to Meeting Tracker${detail?.error ? `: ${detail.error}` : "."}`;
+    case "skipped":
+      return `${who} skipped this card.`;
+    case "created_manual":
+      return `${who} created this item.`;
+    case "parsed":
+      return `${who} parsed this from an email.`;
+    default:
+      return `${who} — ${a.event.replace(/_/g, " ")}`;
+  }
+}
+
 function ActivityPopover({ itemId }: { itemId: string }) {
   const q = useQuery<Activity[]>({
     queryKey: ["/api/items", itemId, "activity"],
   });
+  const entries = q.data || [];
   return (
-    <div className="activity-pop" data-testid={`activity-pop-${itemId}`}>
+    <div className="activity-pop activity-pop-v2" data-testid={`activity-pop-${itemId}`}>
       <div className="lbl">ACTIVITY</div>
       {q.isLoading ? (
         <div style={{ color: "var(--text-dim)", fontSize: 12 }}>Loading…</div>
-      ) : (q.data || []).length === 0 ? (
+      ) : entries.length === 0 ? (
         <div style={{ color: "var(--text-dim)", fontSize: 12 }}>No activity yet.</div>
       ) : (
-        (q.data || []).map((a) => (
-          <div className="activity-entry" key={a.id}>
-            <div className="ico">·</div>
-            <div>
-              <div className="meta">
-                {a.actor.toUpperCase()} · {a.event.replace(/_/g, " ")}
+        entries.map((a) => {
+          const who = actorDisplay(a.actor);
+          // The 'note_added' event already shows in the Notes thread; in the
+          // activity log we still surface it but make clear it was a note.
+          return (
+            <div className="note-item activity-as-note" key={a.id}>
+              <div className={`avatar ${who.key}`}>{who.initial}</div>
+              <div className="note-body">
+                <div className="note-meta">
+                  <b>{who.name}</b> · {fmtNoteDate(a.created_at)}
+                </div>
+                <div className="note-text">{humanizeActivity(a)}</div>
               </div>
-              <div className="when">{relTime(a.created_at)}</div>
-              {a.detail ? <div className="det">{a.detail}</div> : null}
             </div>
-          </div>
-        ))
+          );
+        })
       )}
     </div>
   );

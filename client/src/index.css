@@ -743,7 +743,8 @@ body {
   background: var(--bg-card-hi); color: var(--text-mid);
   border: 1px solid var(--border-hi);
 }
-.note-item .avatar.alex { background: var(--respond-dim); color: var(--respond); border-color: var(--respond); }
+.note-item .avatar.alex,
+.note-item .avatar.alexandra { background: var(--respond-dim); color: var(--respond); border-color: var(--respond); }
 .note-item .avatar.meghan { background: var(--delegate-dim); color: var(--delegate); border-color: var(--delegate); }
 .note-item .avatar.joe { background: var(--neon-dim); color: var(--neon); border-color: var(--neon); }
 .note-item .avatar.system { background: var(--bg-card-deep); color: var(--text-dim); }
@@ -911,9 +912,22 @@ body {
 .activity-pop {
   background: var(--bg-card); border: 1px solid var(--border-hi); border-radius: 10px;
   box-shadow: var(--shadow-card);
-  width: 360px; max-height: 380px; overflow-y: auto;
+  width: 380px; max-height: 420px; overflow-y: auto;
   padding: 14px;
 }
+/* v2: note-style entries, neutral avatar bubble (no color-coding here). */
+.activity-pop-v2 .note-item .avatar,
+.activity-pop-v2 .note-item .avatar.alex,
+.activity-pop-v2 .note-item .avatar.alexandra,
+.activity-pop-v2 .note-item .avatar.meghan,
+.activity-pop-v2 .note-item .avatar.joe,
+.activity-pop-v2 .note-item .avatar.system {
+  background: var(--bg-card-deep);
+  color: var(--text);
+  border-color: var(--border-c);
+}
+.activity-pop-v2 .note-item { padding-top: 8px; border-top: 1px dashed var(--border-c); margin-bottom: 0; }
+.activity-pop-v2 .note-item:first-of-type { border-top: 0; padding-top: 0; }
 .activity-pop .lbl {
   font-family: 'Lemon Milk', sans-serif; font-size: 10px; letter-spacing: 0.16em;
   color: var(--text-dim); margin-bottom: 10px;

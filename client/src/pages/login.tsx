@@ -25,9 +25,11 @@ export default function LoginPage() {
       const res = await apiRequest("POST", "/api/auth/login", body);
       const data = await res.json();
       if (data?.token) setAuthToken(data.token);
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      await refetch();
-      navigate(data.role === "principal" ? "/answer" : "/workspace");
+      // Force a fresh /api/auth/me read with the new token before navigating.
+      // (Without awaiting actual data, the route guard sees null role and bounces back.)
+      const fresh = await refetch();
+      const targetRole = fresh?.role || data.role;
+      navigate(targetRole === "principal" ? "/answer" : "/workspace");
     } catch (err: any) {
       toast({
         title: "Sign-in failed",
