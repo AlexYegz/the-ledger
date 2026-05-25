@@ -25,10 +25,20 @@ export default function LoginPage() {
       const res = await apiRequest("POST", "/api/auth/login", body);
       const data = await res.json();
       if (data?.token) setAuthToken(data.token);
-      // Force a fresh /api/auth/me read with the new token before navigating.
-      // (Without awaiting actual data, the route guard sees null role and bounces back.)
-      const fresh = await refetch();
-      const targetRole = fresh?.role || data.role;
+
+      // CRITICAL: Pre-seed the auth query cache BEFORE navigating.
+      // Otherwise ProtectedRoute mounts before AuthProvider re-renders,
+      // sees role=null, and bounces back to /login. That was the
+      // "have to log in twice" bug.
+      queryClient.setQueryData(["/api/auth/me"], {
+        role: data.role,
+        identity: data.identity,
+      });
+      // Also refetch in the background to confirm against the server.
+      // We've already seeded the cache, so don't await.
+      refetch();
+
+      const targetRole = data.role;
       navigate(targetRole === "principal" ? "/answer" : "/workspace");
     } catch (err: any) {
       toast({
