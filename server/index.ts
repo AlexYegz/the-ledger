@@ -4,6 +4,7 @@ import type { Request } from 'express';
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "node:http";
+import { storage } from "./storage";
 
 const app = express();
 const httpServer = createServer(app);
@@ -102,4 +103,18 @@ app.use((req, res, next) => {
       log(`serving on port ${port}`);
     },
   );
+
+  // Trash auto-purge: items soft-deleted more than 30 days ago are hard-deleted.
+  // Runs once at boot and then every 6 hours.
+  const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+  const runPurge = () => {
+    try {
+      const n = storage.purgeOldTrash(THIRTY_DAYS);
+      if (n > 0) log(`purged ${n} item(s) from trash (>30d old)`);
+    } catch (err) {
+      console.error("trash purge failed:", err);
+    }
+  };
+  runPurge();
+  setInterval(runPurge, 6 * 60 * 60 * 1000);
 })();

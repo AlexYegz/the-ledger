@@ -205,8 +205,14 @@ export async function registerRoutes(
   // ============================================================
   // Items
   // ============================================================
-  app.get("/api/items", requireAuth, (_req, res) => {
-    res.json(storage.listItems());
+  app.get("/api/items", requireAuth, (req, res) => {
+    // ?scope=active | archived | trash | all_visible (active + archived) | all
+    const raw = String((req.query as any).scope || "active");
+    const allowed = ["active", "archived", "trash", "all_visible", "all"] as const;
+    const scope = (allowed as readonly string[]).includes(raw)
+      ? (raw as (typeof allowed)[number])
+      : "active";
+    res.json(storage.listItems(scope));
   });
 
   app.get("/api/items/:id", requireAuth, (req, res) => {
@@ -232,9 +238,71 @@ export async function registerRoutes(
     res.json(item);
   });
 
+  // Soft-delete: moves the item to trash. Hard purge happens after 30 days
+  // via the periodic purge sweep in server/index.ts.
   app.delete("/api/items/:id", requireAuth, (req, res) => {
-    storage.deleteItem((req.params.id as string));
-    res.json({ ok: true });
+    const id = req.params.id as string;
+    const existing = storage.getItem(id);
+    if (!existing) return res.status(404).json({ message: "not found" });
+    if (existing.deleted_at) {
+      // Already in trash — explicit ?hard=1 triggers permanent delete.
+      if ((req.query as any).hard === "1") {
+        storage.deleteItem(id);
+        return res.json({ ok: true, hardDeleted: true });
+      }
+      return res.json({ ok: true, alreadyDeleted: true });
+    }
+    const actor = actorForReq(req);
+    const updated = storage.softDeleteItem(id);
+    storage.logActivity({
+      item_id: id,
+      actor,
+      event: "item_deleted",
+      detail: null,
+    });
+    res.json({ ok: true, item: updated });
+  });
+
+  app.post("/api/items/:id/restore", requireAuth, (req, res) => {
+    const id = req.params.id as string;
+    const existing = storage.getItem(id);
+    if (!existing) return res.status(404).json({ message: "not found" });
+    const updated = storage.restoreItem(id);
+    storage.logActivity({
+      item_id: id,
+      actor: actorForReq(req),
+      event: "item_restored",
+      detail: null,
+    });
+    res.json({ ok: true, item: updated });
+  });
+
+  app.post("/api/items/:id/archive", requireAuth, (req, res) => {
+    const id = req.params.id as string;
+    const existing = storage.getItem(id);
+    if (!existing) return res.status(404).json({ message: "not found" });
+    const updated = storage.archiveItem(id);
+    storage.logActivity({
+      item_id: id,
+      actor: actorForReq(req),
+      event: "item_archived",
+      detail: null,
+    });
+    res.json({ ok: true, item: updated });
+  });
+
+  app.post("/api/items/:id/unarchive", requireAuth, (req, res) => {
+    const id = req.params.id as string;
+    const existing = storage.getItem(id);
+    if (!existing) return res.status(404).json({ message: "not found" });
+    const updated = storage.unarchiveItem(id);
+    storage.logActivity({
+      item_id: id,
+      actor: actorForReq(req),
+      event: "item_unarchived",
+      detail: null,
+    });
+    res.json({ ok: true, item: updated });
   });
 
   app.patch("/api/items/:id", requireAuth, async (req, res) => {

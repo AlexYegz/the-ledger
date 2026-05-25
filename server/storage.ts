@@ -11,7 +11,7 @@ import {
 } from "@shared/schema";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, isNull, isNotNull, lt } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, existsSync, copyFileSync } from "node:fs";
 import { dirname } from "node:path";
@@ -56,7 +56,9 @@ CREATE TABLE IF NOT EXISTS items (
   sent_to_meeting_tracker_at INTEGER,
   meeting_tracker_id TEXT,
   skip_count INTEGER NOT NULL DEFAULT 0,
-  principal_note TEXT
+  principal_note TEXT,
+  archived_at INTEGER,
+  deleted_at INTEGER
 );
 CREATE TABLE IF NOT EXISTS notes (
   id TEXT PRIMARY KEY,
@@ -84,18 +86,30 @@ try {
   if (!has("principal_note")) {
     sqlite.exec("ALTER TABLE items ADD COLUMN principal_note TEXT;");
   }
+  if (!has("archived_at")) {
+    sqlite.exec("ALTER TABLE items ADD COLUMN archived_at INTEGER;");
+  }
+  if (!has("deleted_at")) {
+    sqlite.exec("ALTER TABLE items ADD COLUMN deleted_at INTEGER;");
+  }
 } catch {
   // best-effort
 }
 
 export const db = drizzle(sqlite);
 
+export type ItemScope = "active" | "archived" | "trash" | "all_visible" | "all";
 export interface IStorage {
-  listItems(): Item[];
+  listItems(scope?: ItemScope): Item[];
   getItem(id: string): Item | undefined;
   createItem(data: InsertItem): Item;
   updateItem(id: string, patch: Partial<Item>): Item | undefined;
   deleteItem(id: string): boolean;
+  softDeleteItem(id: string): Item | undefined;
+  restoreItem(id: string): Item | undefined;
+  archiveItem(id: string): Item | undefined;
+  unarchiveItem(id: string): Item | undefined;
+  purgeOldTrash(olderThanMs: number): number;
   incrementSkip(id: string): Item | undefined;
 
   listNotes(itemId: string): Note[];
@@ -106,8 +120,29 @@ export interface IStorage {
 }
 
 export class SqliteStorage implements IStorage {
-  listItems(): Item[] {
-    return db.select().from(items).orderBy(desc(items.date_received), desc(items.created_at)).all();
+  listItems(scope: ItemScope = "active"): Item[] {
+    let where;
+    switch (scope) {
+      case "active":
+        where = and(isNull(items.archived_at), isNull(items.deleted_at));
+        break;
+      case "archived":
+        where = and(isNotNull(items.archived_at), isNull(items.deleted_at));
+        break;
+      case "trash":
+        where = isNotNull(items.deleted_at);
+        break;
+      case "all_visible":
+        // Active + archived (everything not in trash). Useful for Joe's status view.
+        where = isNull(items.deleted_at);
+        break;
+      case "all":
+      default:
+        where = undefined;
+    }
+    const base = db.select().from(items);
+    const filtered = where ? base.where(where) : base;
+    return filtered.orderBy(desc(items.date_received), desc(items.created_at)).all();
   }
   getItem(id: string): Item | undefined {
     return db.select().from(items).where(eq(items.id, id)).get();
@@ -130,10 +165,37 @@ export class SqliteStorage implements IStorage {
     return this.getItem(id);
   }
   deleteItem(id: string): boolean {
+    // Hard delete. Reserved for the 30-day purge sweep; UI uses softDeleteItem.
     const r = db.delete(items).where(eq(items.id, id)).run();
     db.delete(notes).where(eq(notes.item_id, id)).run();
     db.delete(activity_log).where(eq(activity_log.item_id, id)).run();
     return r.changes > 0;
+  }
+  softDeleteItem(id: string): Item | undefined {
+    return this.updateItem(id, { deleted_at: Date.now() } as Partial<Item>);
+  }
+  restoreItem(id: string): Item | undefined {
+    return this.updateItem(id, { deleted_at: null } as Partial<Item>);
+  }
+  archiveItem(id: string): Item | undefined {
+    return this.updateItem(id, { archived_at: Date.now() } as Partial<Item>);
+  }
+  unarchiveItem(id: string): Item | undefined {
+    return this.updateItem(id, { archived_at: null } as Partial<Item>);
+  }
+  // Hard-delete items that have been in trash longer than `olderThanMs`.
+  purgeOldTrash(olderThanMs: number): number {
+    const cutoff = Date.now() - olderThanMs;
+    const stale = db
+      .select()
+      .from(items)
+      .where(and(isNotNull(items.deleted_at), lt(items.deleted_at, cutoff)))
+      .all();
+    let purged = 0;
+    for (const row of stale) {
+      if (this.deleteItem(row.id)) purged += 1;
+    }
+    return purged;
   }
   incrementSkip(id: string): Item | undefined {
     const existing = this.getItem(id);

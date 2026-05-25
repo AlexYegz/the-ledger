@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Clock } from "lucide-react";
+import { Clock, Trash2, Archive, ArchiveRestore, RotateCcw } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { CategoryPill, DecisionTag, FlameIcon, OwnerAvatar, StatusTag } from "@/components/Bits";
@@ -16,14 +16,18 @@ const DECISIONS: { v: Decision; label: string }[] = [
   { v: "delegate", label: "Delegate" },
 ];
 
+type RowScope = "active" | "archived" | "trash" | "all_visible";
+
 export function LedgerRow({
   item,
   isInternal,
   readOnly = false,
+  scope = "active",
 }: {
   item: Item;
   isInternal: boolean;
   readOnly?: boolean;
+  scope?: RowScope;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
@@ -50,6 +54,50 @@ export function LedgerRow({
       queryClient.invalidateQueries({ queryKey: ["/api/items", item.id, "notes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items", item.id, "activity"] });
     },
+  });
+
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+  };
+
+  const softDeleteMut = useMutation({
+    mutationFn: async () => {
+      const r = await apiRequest("DELETE", `/api/items/${item.id}`);
+      return r.json();
+    },
+    onSuccess: invalidateAll,
+  });
+
+  const restoreMut = useMutation({
+    mutationFn: async () => {
+      const r = await apiRequest("POST", `/api/items/${item.id}/restore`);
+      return r.json();
+    },
+    onSuccess: invalidateAll,
+  });
+
+  const hardDeleteMut = useMutation({
+    mutationFn: async () => {
+      const r = await apiRequest("DELETE", `/api/items/${item.id}?hard=1`);
+      return r.json().catch(() => ({}));
+    },
+    onSuccess: invalidateAll,
+  });
+
+  const archiveMut = useMutation({
+    mutationFn: async () => {
+      const r = await apiRequest("POST", `/api/items/${item.id}/archive`);
+      return r.json();
+    },
+    onSuccess: invalidateAll,
+  });
+
+  const unarchiveMut = useMutation({
+    mutationFn: async () => {
+      const r = await apiRequest("POST", `/api/items/${item.id}/unarchive`);
+      return r.json();
+    },
+    onSuccess: invalidateAll,
   });
 
   const postNote = useMutation({
@@ -123,7 +171,71 @@ export function LedgerRow({
         )}
       </div>
 
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6 }} onClick={stop}>
+        {!readOnly && scope === "active" && (
+          <>
+            <button
+              className="btn-icon-ghost"
+              title="Archive"
+              onClick={() => archiveMut.mutate()}
+              disabled={archiveMut.isPending}
+              data-testid={`button-archive-${item.id}`}
+            >
+              <Archive size={12} />
+            </button>
+            <button
+              className="btn-icon-ghost"
+              title="Move to trash"
+              onClick={() => {
+                if (confirm("Move this card to Trash? It will auto-purge after 30 days.")) {
+                  softDeleteMut.mutate();
+                }
+              }}
+              disabled={softDeleteMut.isPending}
+              data-testid={`button-delete-${item.id}`}
+            >
+              <Trash2 size={12} />
+            </button>
+          </>
+        )}
+        {!readOnly && scope === "archived" && (
+          <button
+            className="btn-icon-ghost"
+            title="Unarchive"
+            onClick={() => unarchiveMut.mutate()}
+            disabled={unarchiveMut.isPending}
+            data-testid={`button-unarchive-${item.id}`}
+          >
+            <ArchiveRestore size={12} />
+          </button>
+        )}
+        {!readOnly && scope === "trash" && (
+          <>
+            <button
+              className="btn-icon-ghost"
+              title="Restore"
+              onClick={() => restoreMut.mutate()}
+              disabled={restoreMut.isPending}
+              data-testid={`button-restore-${item.id}`}
+            >
+              <RotateCcw size={12} />
+            </button>
+            <button
+              className="btn-icon-ghost"
+              title="Delete forever"
+              onClick={() => {
+                if (confirm("Delete this card forever? This cannot be undone.")) {
+                  hardDeleteMut.mutate();
+                }
+              }}
+              disabled={hardDeleteMut.isPending}
+              data-testid={`button-hard-delete-${item.id}`}
+              style={{ color: "var(--danger, #ff6b6b)" }}
+            >
+              <Trash2 size={12} />
+            </button>
+          </>
+        )}
         <Popover>
           <PopoverTrigger asChild>
             <button

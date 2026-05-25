@@ -1,11 +1,14 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Plus, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { TopBar } from "@/components/TopBar";
 import { LedgerRow } from "@/components/LedgerRow";
 import { ParserModal } from "@/components/ParserModal";
 import type { Item } from "@shared/schema";
+
+type Tab = "active" | "archived" | "trash";
 
 type SortKey = "date" | "decision" | "sender" | "status" | "owner" | "internal";
 const SORT_LABEL: Record<SortKey, string> = {
@@ -18,6 +21,9 @@ const SORT_LABEL: Record<SortKey, string> = {
 };
 
 export default function WorkspacePage({ readOnly = false }: { readOnly?: boolean }) {
+  // Status (Joe's read-only) view sees active + archived together; team sees one tab at a time.
+  const [tab, setTab] = useState<Tab>("active");
+  const scope = readOnly ? "all_visible" : tab;
   const [sort, setSort] = useState<SortKey>("date");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
   const [search, setSearch] = useState("");
@@ -29,7 +35,15 @@ export default function WorkspacePage({ readOnly = false }: { readOnly?: boolean
   const [filterTS, setFilterTS] = useState<"" | "ts">("");
   const [parserOpen, setParserOpen] = useState(false);
 
-  const itemsQ = useQuery<Item[]>({ queryKey: ["/api/items"] });
+  // Custom queryFn because the default joins queryKey parts into the URL path,
+  // which doesn't play nice with query-string scopes. We want /api/items?scope=...
+  const itemsQ = useQuery<Item[]>({
+    queryKey: ["/api/items", { scope }],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/items?scope=${scope}`);
+      return res.json();
+    },
+  });
   const cfgQ = useQuery<{ internalDomains: string[] }>({ queryKey: ["/api/config"] });
 
   const isInternal = (email: string | null | undefined) => {
@@ -151,9 +165,35 @@ export default function WorkspacePage({ readOnly = false }: { readOnly?: boolean
       </div>
 
       <div className="workspace">
+        {!readOnly && (
+          <div className="ws-tabs" data-testid="workspace-tabs">
+            <button
+              className={`ws-tab ${tab === "active" ? "active" : ""}`}
+              onClick={() => setTab("active")}
+              data-testid="tab-active"
+            >
+              ACTIVE
+            </button>
+            <button
+              className={`ws-tab ${tab === "archived" ? "active" : ""}`}
+              onClick={() => setTab("archived")}
+              data-testid="tab-archived"
+            >
+              ARCHIVE
+            </button>
+            <button
+              className={`ws-tab ${tab === "trash" ? "active" : ""}`}
+              onClick={() => setTab("trash")}
+              data-testid="tab-trash"
+            >
+              TRASH
+            </button>
+          </div>
+        )}
+
         <div className="workspace-toolbar">
           <div className="toolbar-left">
-            {!readOnly && (
+            {!readOnly && tab === "active" && (
               <button
                 className="btn-primary"
                 onClick={() => setParserOpen(true)}
@@ -297,11 +337,23 @@ export default function WorkspacePage({ readOnly = false }: { readOnly?: boolean
             </div>
           ) : items.length === 0 ? (
             <div className="empty-state" data-testid="empty-state">
-              <div className="eb">{(itemsQ.data || []).length === 0 ? "NO ITEMS YET" : "NO MATCHES"}</div>
+              <div className="eb">
+                {(itemsQ.data || []).length === 0
+                  ? tab === "archived"
+                    ? "ARCHIVE IS EMPTY"
+                    : tab === "trash"
+                    ? "TRASH IS EMPTY"
+                    : "NO ITEMS YET"
+                  : "NO MATCHES"}
+              </div>
               <div className="sb">
                 {(itemsQ.data || []).length === 0
                   ? readOnly
                     ? "Items will appear here once Meghan or Alexandra adds them."
+                    : tab === "archived"
+                    ? "Archive cards from the Active tab to file them here."
+                    : tab === "trash"
+                    ? "Items deleted from the Active tab live here for 30 days, then are permanently removed."
                     : "Click ADD TO LEDGER to parse an email or add a row manually."
                   : "Try clearing filters or adjusting your search."}
               </div>
@@ -313,6 +365,7 @@ export default function WorkspacePage({ readOnly = false }: { readOnly?: boolean
                 item={item}
                 isInternal={isInternal(item.sender_email)}
                 readOnly={readOnly}
+                scope={readOnly ? "all_visible" : tab}
               />
             ))
           )}
