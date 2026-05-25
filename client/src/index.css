@@ -653,7 +653,7 @@ body {
 }
 .ledger-row {
   display: grid;
-  grid-template-columns: 92px 1fr 180px 168px 144px 80px;
+  grid-template-columns: 92px 1fr 180px 168px 144px 140px;
   gap: 16px;
   padding: 14px 20px;
   border-bottom: 1px solid var(--border-c);
@@ -1065,7 +1065,7 @@ body {
 @media (max-width: 1000px) {
   .answer-stage { grid-template-columns: 1fr; }
   .side-rail { position: static; }
-  .ledger-row { grid-template-columns: 80px 1fr 140px 140px 120px 60px; gap: 10px; padding: 12px; }
+  .ledger-row { grid-template-columns: 80px 1fr 140px 140px 120px 120px; gap: 10px; padding: 12px; }
 }
 @media (max-width: 700px) {
   .ledger-row { grid-template-columns: 70px 1fr 80px; }
