@@ -2,7 +2,9 @@ import { useMemo, useState, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { TopBar } from "@/components/TopBar";
-import { CategoryPill, FlameTag } from "@/components/Bits";
+import { CategoryPill, FlameIcon, FlameTag } from "@/components/Bits";
+import { CATEGORY_VAR } from "@/lib/labels";
+import type { Category } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Item } from "@shared/schema";
 
@@ -93,7 +95,7 @@ export default function AnswerPage() {
       .filter((x): x is Item => !!x && !!x.decision);
   }, [allItems, answeredOrder]);
 
-  const piles = useMemo<{ label: string; items: Item[] }[]>(() => {
+  const piles = useMemo<{ label: string; items: Item[]; category?: string }[]>(() => {
     if (pending.length === 0) return [];
     if (pile === "one") return [{ label: "ALL", items: pending }];
     if (pile === "ts") {
@@ -115,6 +117,7 @@ export default function AnswerPage() {
     return Object.entries(groups).map(([cat, items]) => ({
       label: cat.replace(/_/g, " ").toUpperCase(),
       items,
+      category: cat,
     }));
   }, [pending, pile, cfgQ.data]);
 
@@ -189,10 +192,22 @@ export default function AnswerPage() {
 
       <div className="answer-stage">
         <div>
-          <div className="queue-meta" data-testid="queue-meta">
-            <span>
+          <div className="queue-meta queue-meta-row" data-testid="queue-meta">
+            <span className="queue-meta-text">
               <span className="count">{plural(pending.length, "ITEM")}</span> AWAITING YOUR CALL
             </span>
+            <div className="queue-progress" data-testid="queue-progress">
+              <div className="queue-progress-label">
+                TODAY'S PROGRESS
+                <b>{decidedToday} / {totalToday}</b>
+              </div>
+              <div className="queue-progress-bar">
+                <div
+                  className="queue-progress-fill"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+            </div>
           </div>
           <div className="pile-picker" data-testid="pile-picker">
             {(Object.keys(PILE_LABEL) as Pile[]).map((p) => (
@@ -202,6 +217,7 @@ export default function AnswerPage() {
                 onClick={() => setPile(p)}
                 data-testid={`pile-${p}`}
               >
+                {p === "ts" && <FlameIcon className="flame-icon pile-chip-flame" size={14} />}
                 {PILE_LABEL[p]}
               </button>
             ))}
@@ -232,9 +248,14 @@ export default function AnswerPage() {
               />
             ) : (
               <div className="pile-grid" data-testid="pile-grid">
-                {piles.map((p) => (
+                {piles.map((p) => {
+                  const catVar = p.category ? CATEGORY_VAR[p.category as Category] : null;
+                  const labelStyle = catVar
+                    ? { background: catVar.bg, color: catVar.fg, borderColor: "transparent" }
+                    : undefined;
+                  return (
                   <div className="pile-col" key={p.label}>
-                    <span className="pile-col-label">{p.label} · {p.items.length}</span>
+                    <span className="pile-col-label" style={labelStyle}>{p.label} · {p.items.length}</span>
                     <CardStack
                       items={p.items}
                       onDecide={handleDecision}
@@ -247,7 +268,8 @@ export default function AnswerPage() {
                       compact
                     />
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -290,22 +312,6 @@ export default function AnswerPage() {
             </div>
           )}
         </div>
-
-        <aside className="side-rail">
-          <div className="rail-card">
-            <div className="rail-label">TODAY'S PROGRESS</div>
-            <div className="rail-progress-bar">
-              <div
-                className="rail-progress-fill"
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
-            <div className="rail-progress-text">
-              <span>Decisions made</span>
-              <b>{decidedToday} / {totalToday}</b>
-            </div>
-          </div>
-        </aside>
       </div>
     </>
   );
