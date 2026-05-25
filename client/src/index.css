@@ -423,8 +423,67 @@ body {
   color: var(--respond);
   flex-shrink: 0; padding-top: 2px;
 }
-.team-note-text { font-size: 13px; color: var(--text-mid); line-height: 1.5; }
+.team-note-text { font-size: 13px; color: var(--text-mid); line-height: 1.5; flex: 1; }
 .team-note-text b { color: var(--text); font-weight: 600; font-family: 'Lemon Milk', sans-serif; font-size: 10px; letter-spacing: 0.08em; }
+
+.team-note-clickable { cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease; }
+.team-note-clickable:hover { border-color: var(--respond); background: rgba(255,255,255,0.02); }
+.team-note-clickable:hover .team-note-edit-hint { opacity: 1; }
+.team-note-edit-hint {
+  font-family: 'Lemon Milk', sans-serif; font-size: 9px; letter-spacing: 0.18em;
+  color: var(--text-dim); opacity: 0; transition: opacity 0.15s ease;
+  flex-shrink: 0; padding-top: 2px;
+}
+
+.team-note-edit { flex-direction: column; gap: 8px; border-style: solid; border-color: var(--respond); }
+.team-note-textarea {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border-c);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  resize: vertical;
+  min-height: 56px;
+  outline: none;
+}
+.team-note-textarea:focus { border-color: var(--respond); }
+.team-note-actions { display: flex; gap: 8px; align-items: center; }
+.team-note-save, .team-note-cancel {
+  font-family: 'Lemon Milk', sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid var(--border-hi);
+  background: transparent;
+  transition: all 0.15s ease;
+}
+.team-note-save { color: var(--respond); border-color: var(--respond); }
+.team-note-save:hover { background: var(--respond); color: var(--bg); }
+.team-note-cancel { color: var(--text-dim); }
+.team-note-cancel:hover { color: var(--text); border-color: var(--text); }
+
+.team-note-add {
+  background: transparent;
+  border: 1px dashed var(--border-c);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 18px;
+  color: var(--text-dim);
+  font-family: 'Lemon Milk', sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+.team-note-add:hover { color: var(--respond); border-color: var(--respond); border-style: solid; }
 
 .card-decision-prompt {
   font-size: 13px; color: var(--text-mid); margin-bottom: 14px;

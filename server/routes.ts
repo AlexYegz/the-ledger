@@ -326,6 +326,10 @@ export async function registerRoutes(
     const principalNoteChanging =
       patch.principal_note !== undefined &&
       (patch.principal_note || null) !== (existing.principal_note || null);
+    const teamNoteChanging =
+      patch.team_note_for_principal !== undefined &&
+      (patch.team_note_for_principal || null) !==
+        (existing.team_note_for_principal || null);
 
     if (decisionChanging) {
       patch.decided_at = undoingDecision ? null : now;
@@ -390,6 +394,20 @@ export async function registerRoutes(
         actor,
         event: "owner_changed",
         detail: JSON.stringify({ owner: updated.owner }),
+      });
+    }
+    if (teamNoteChanging) {
+      const newVal = updated.team_note_for_principal || null;
+      const action = newVal
+        ? existing.team_note_for_principal
+          ? "updated"
+          : "added"
+        : "cleared";
+      storage.logActivity({
+        item_id: updated.id,
+        actor,
+        event: "team_note_changed",
+        detail: JSON.stringify({ action, value: newVal }),
       });
     }
 

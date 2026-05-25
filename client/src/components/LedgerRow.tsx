@@ -268,11 +268,19 @@ export function LedgerRow({
             ) : null}
           </div>
 
-          {item.team_note_for_principal && (
-            <div className="team-note">
-              <span className="team-note-label">FROM&nbsp;TEAM</span>
-              <span className="team-note-text">{item.team_note_for_principal}</span>
-            </div>
+          {readOnly ? (
+            item.team_note_for_principal && (
+              <div className="team-note">
+                <span className="team-note-label">FROM&nbsp;TEAM</span>
+                <span className="team-note-text">{item.team_note_for_principal}</span>
+              </div>
+            )
+          ) : (
+            <TeamNoteEditor
+              itemId={item.id}
+              value={item.team_note_for_principal}
+              onSave={(v) => patchMut.mutate({ team_note_for_principal: v })}
+            />
           )}
 
           {!readOnly && (
@@ -389,6 +397,101 @@ export function LedgerRow({
         </div>
       )}
     </div>
+  );
+}
+
+function TeamNoteEditor({
+  itemId,
+  value,
+  onSave,
+}: {
+  itemId: string;
+  value: string | null;
+  onSave: (v: string | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value || "");
+
+  // Sync draft when external value changes (after save) and we're not editing.
+  if (!editing && draft !== (value || "") && document.activeElement?.tagName !== "TEXTAREA") {
+    // no-op; we update via setDraft on entering edit mode
+  }
+
+  const commit = () => {
+    const trimmed = draft.trim();
+    onSave(trimmed ? trimmed : null);
+    setEditing(false);
+  };
+  const cancel = () => {
+    setDraft(value || "");
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <div className="team-note team-note-edit">
+        <span className="team-note-label">FROM&nbsp;TEAM</span>
+        <textarea
+          className="team-note-textarea"
+          value={draft}
+          autoFocus
+          rows={2}
+          placeholder="Add a note for Joe…"
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              commit();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              cancel();
+            }
+          }}
+          data-testid={`input-team-note-${itemId}`}
+        />
+        <div className="team-note-actions">
+          <button
+            className="team-note-save"
+            onClick={commit}
+            data-testid={`button-save-team-note-${itemId}`}
+          >
+            SAVE
+          </button>
+          <button
+            className="team-note-cancel"
+            onClick={cancel}
+            data-testid={`button-cancel-team-note-${itemId}`}
+          >
+            CANCEL
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (value) {
+    return (
+      <div
+        className="team-note team-note-clickable"
+        onClick={() => { setDraft(value); setEditing(true); }}
+        data-testid={`button-edit-team-note-${itemId}`}
+        title="Click to edit note for Joe"
+      >
+        <span className="team-note-label">FROM&nbsp;TEAM</span>
+        <span className="team-note-text">{value}</span>
+        <span className="team-note-edit-hint">EDIT</span>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      className="team-note-add"
+      onClick={() => { setDraft(""); setEditing(true); }}
+      data-testid={`button-add-team-note-${itemId}`}
+    >
+      + ADD NOTE FOR JOE
+    </button>
   );
 }
 
@@ -512,6 +615,12 @@ function humanizeActivity(a: Activity): string {
     }
     case "principal_note_added":
       return `${who} added a note.`;
+    case "team_note_changed": {
+      const action = detail?.action || "updated";
+      if (action === "cleared") return `${who} cleared the note for Joe.`;
+      if (action === "added") return `${who} added a note for Joe.`;
+      return `${who} updated the note for Joe.`;
+    }
     case "note_added":
       return `${who} added a note.`;
     case "owner_changed": {
