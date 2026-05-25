@@ -12,8 +12,6 @@ import {
   CLAUDE_API_KEY,
   CLAUDE_MODEL,
   INTERNAL_DOMAINS,
-  LEDGER_PRINCIPAL_PASSWORD,
-  LEDGER_TEAM_PASSWORD,
   LEDGER_TO_TRACKER_TOKEN,
   MEETING_TRACKER_URL,
 } from "./config";
@@ -156,27 +154,23 @@ export async function registerRoutes(
   // Auth
   // ============================================================
   app.post("/api/auth/login", (req, res) => {
+    // Passwords are temporarily disabled. Any role / identity selection
+    // is honored. The password field is ignored if present.
     const schema = z.object({
       role: z.enum(["principal", "team"]),
-      password: z.string(),
+      password: z.string().optional(),
       identity: z.enum(["meghan", "alexandra"]).optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ message: "invalid input" });
     }
-    const { role, password, identity } = parsed.data;
+    const { role, identity } = parsed.data;
     if (role === "principal") {
-      if (password !== LEDGER_PRINCIPAL_PASSWORD) {
-        return res.status(401).json({ message: "wrong password" });
-      }
       const token = issueToken("principal", "joe");
       return res.json({ role: "principal", identity: "joe", token });
     }
     // team
-    if (password !== LEDGER_TEAM_PASSWORD) {
-      return res.status(401).json({ message: "wrong password" });
-    }
     if (!identity) {
       return res.status(400).json({ message: "team identity required" });
     }

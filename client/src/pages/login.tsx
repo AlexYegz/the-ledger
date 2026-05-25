@@ -8,7 +8,6 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function LoginPage() {
   const [role, setRole] = useState<"principal" | "team">("principal");
-  const [password, setPassword] = useState("");
   const [identity, setIdentity] = useState<"meghan" | "alexandra">("meghan");
   const [busy, setBusy] = useState(false);
   const { refetch } = useAuth();
@@ -20,7 +19,7 @@ export default function LoginPage() {
     e.preventDefault();
     setBusy(true);
     try {
-      const body: any = { role, password };
+      const body: any = { role };
       if (role === "team") body.identity = identity;
       const res = await apiRequest("POST", "/api/auth/login", body);
       const data = await res.json();
@@ -110,23 +109,12 @@ export default function LoginPage() {
           </div>
         )}
 
-        <div className="login-field">
-          <label>PASSWORD</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter password"
-            autoFocus
-            data-testid="input-password"
-          />
-        </div>
-
         <button
           type="submit"
           className="btn-primary"
-          style={{ width: "100%", justifyContent: "center", padding: "12px 18px" }}
+          style={{ width: "100%", justifyContent: "center", padding: "12px 18px", marginTop: 18 }}
           disabled={busy}
+          autoFocus
           data-testid="button-sign-in"
         >
           {busy ? "SIGNING IN…" : "SIGN IN"}
