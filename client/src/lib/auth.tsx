@@ -15,7 +15,7 @@ type Ctx = {
 const AuthCtx = createContext<Ctx>({
   me: { role: null, identity: null },
   isLoading: false,
-  refetch: () => {},
+  refetch: async () => undefined,
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
