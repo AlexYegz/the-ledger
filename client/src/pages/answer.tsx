@@ -2,6 +2,7 @@ import { useMemo, useState, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { TopBar } from "@/components/TopBar";
+import { HeroBanner } from "@/components/HeroBanner";
 import { CategoryPill, FlameIcon, FlameTag } from "@/components/Bits";
 import { CATEGORY_VAR } from "@/lib/labels";
 import type { Category } from "@shared/schema";
@@ -180,15 +181,11 @@ export default function AnswerPage() {
   return (
     <>
       <TopBar />
-      <div className="section">
-        <div className="section-eyebrow">VIEW 01 · PRINCIPAL</div>
-        <div className="section-title">ANSWER MODE</div>
-        <div className="section-sub">
-          Card stack for clearing the queue. Tap a decision, next card appears.
-          Skip moves the card to the back of the deck. Answered cards stack to
-          the side. Click one to change your call.
-        </div>
-      </div>
+      <HeroBanner
+        eyebrow="View 01 · Principal"
+        title="Answer Mode"
+        subtitle="Card stack for clearing the queue. Tap a decision, next card appears."
+      />
 
       <div className="answer-stage">
         <div>

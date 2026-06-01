@@ -1,11 +1,9 @@
 import { useLocation } from "wouter";
-import { Sun, Moon, LogOut } from "lucide-react";
-import { useTheme } from "@/lib/theme";
+import { LogOut } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { apiRequest, queryClient, setAuthToken } from "@/lib/queryClient";
 
 export function TopBar() {
-  const { theme, toggle } = useTheme();
   const { me, refetch } = useAuth();
   const [location, navigate] = useLocation();
 
@@ -25,9 +23,17 @@ export function TopBar() {
 
   return (
     <div className="topbar" data-testid="topbar">
-      <div className="brand" onClick={() => navigate(me.role === "team" ? "/workspace" : "/answer")} style={{ cursor: "pointer" }} data-testid="brand">
+      <div
+        className="brand"
+        onClick={() => navigate(me.role === "team" ? "/workspace" : "/answer")}
+        style={{ cursor: "pointer" }}
+        data-testid="brand"
+      >
         <div className="brand-mark">L</div>
-        <div className="brand-name">THE LEDGER</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          <div className="brand-name">The Ledger</div>
+          <div className="brand-eyebrow">Office of Joe Liemandt</div>
+        </div>
       </div>
       <div className="topbar-right">
         {isPrincipal && (
@@ -37,14 +43,14 @@ export function TopBar() {
               onClick={() => navigate("/answer")}
               data-testid="button-view-answer"
             >
-              ANSWER
+              Answer
             </button>
             <button
               className={onStatus ? "active" : ""}
               onClick={() => navigate("/status")}
               data-testid="button-view-status"
             >
-              STATUS
+              Status
             </button>
           </div>
         )}
@@ -54,18 +60,9 @@ export function TopBar() {
             {me.identity === "joe" ? "JOE" : (me.identity || "").toUpperCase()}
           </div>
         )}
-        <button
-          className="theme-toggle"
-          onClick={toggle}
-          title="Toggle theme"
-          aria-label="Toggle theme"
-          data-testid="button-theme-toggle"
-        >
-          {theme === "dark" ? <Sun /> : <Moon />}
-        </button>
         {me.role && (
           <button
-            className="theme-toggle"
+            className="sign-out-btn"
             onClick={handleLogout}
             title="Sign out"
             aria-label="Sign out"

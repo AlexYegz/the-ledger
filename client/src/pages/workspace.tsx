@@ -4,6 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Search } from "lucide-react";
 import { TopBar } from "@/components/TopBar";
+import { HeroBanner } from "@/components/HeroBanner";
 import { LedgerRow } from "@/components/LedgerRow";
 import { ParserModal } from "@/components/ParserModal";
 import type { Item } from "@shared/schema";
@@ -154,15 +155,15 @@ export default function WorkspacePage({ readOnly = false }: { readOnly?: boolean
   return (
     <>
       <TopBar />
-      <div className="section">
-        <div className="section-eyebrow">{readOnly ? "STATUS MODE" : "TEAM WORKSPACE"}</div>
-        <div className="section-title">{readOnly ? "STATUS" : "WORKSPACE"}</div>
-        <div className="section-sub">
-          {readOnly
-            ? "Read-only view of every item in flight. Click a row to drill into context, notes, and history."
-            : "Sortable list. Click a row to expand and see context, the question for Joe, and the notes thread. Inline owner and status dropdowns."}
-        </div>
-      </div>
+      <HeroBanner
+        eyebrow={readOnly ? "Status Mode" : "Team Workspace"}
+        title={readOnly ? "Status" : "Workspace"}
+        subtitle={
+          readOnly
+            ? "Read-only view of every item in flight. Click a row to drill into context and history."
+            : "Sortable list. Click a row to expand context, notes, and the notes thread."
+        }
+      />
 
       <div className="workspace">
         {!readOnly && (

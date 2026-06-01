@@ -1,9 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Sun, Moon } from "lucide-react";
 import { apiRequest, queryClient, setAuthToken } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
-import { useTheme } from "@/lib/theme";
 import { useToast } from "@/hooks/use-toast";
 
 export default function LoginPage() {
@@ -11,7 +9,6 @@ export default function LoginPage() {
   const [identity, setIdentity] = useState<"meghan" | "alexandra">("meghan");
   const [busy, setBusy] = useState(false);
   const { refetch } = useAuth();
-  const { theme, toggle } = useTheme();
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
@@ -52,22 +49,19 @@ export default function LoginPage() {
 
   return (
     <div className="login-stage">
-      <div style={{ position: "fixed", top: 20, right: 20 }}>
-        <button
-          className="theme-toggle"
-          onClick={toggle}
-          title="Toggle theme"
-          aria-label="Toggle theme"
-          data-testid="button-theme-toggle"
-        >
-          {theme === "dark" ? <Sun /> : <Moon />}
-        </button>
-      </div>
-      <form className="login-card" onSubmit={submit} data-testid="login-form">
-        <div className="brand" style={{ marginBottom: 18 }}>
-          <div className="brand-mark">L</div>
-          <div className="brand-name">THE LEDGER</div>
+      <form
+        className="login-card"
+        onSubmit={submit}
+        data-testid="login-form"
+        style={{ padding: "48px 32px 40px", borderRadius: 12 }}
+      >
+        <div className="login-brand-block">
+          <div className="login-brand-mark">L</div>
+          <div className="login-wordmark">The Ledger</div>
+          <div className="login-eyebrow">Office of Joe Liemandt</div>
+          <div className="login-accent-bar" />
         </div>
+
         <div className="login-tabs">
           <button
             type="button"
@@ -117,7 +111,7 @@ export default function LoginPage() {
           autoFocus
           data-testid="button-sign-in"
         >
-          {busy ? "SIGNING IN…" : "SIGN IN"}
+          {busy ? "SIGNING IN..." : "SIGN IN"}
         </button>
 
         <div
@@ -125,7 +119,8 @@ export default function LoginPage() {
             marginTop: 18,
             fontSize: 11,
             color: "var(--text-dim)",
-            fontFamily: "Lemon Milk, sans-serif",
+            fontFamily: "'Inter', sans-serif",
+            fontWeight: 700,
             letterSpacing: "0.1em",
             textAlign: "center",
           }}
