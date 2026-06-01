@@ -156,7 +156,6 @@ export default function WorkspacePage({ readOnly = false }: { readOnly?: boolean
     <>
       <TopBar />
       <HeroBanner
-        eyebrow={readOnly ? "Status Mode" : "Team Workspace"}
         title={readOnly ? "Status" : "Workspace"}
         subtitle={
           readOnly

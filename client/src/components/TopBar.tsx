@@ -29,10 +29,12 @@ export function TopBar() {
         style={{ cursor: "pointer" }}
         data-testid="brand"
       >
-        <div className="brand-mark">L</div>
+        <div className="brand-mark">
+          <img src="/icons/icon-ledger.png" alt="" aria-hidden="true" />
+        </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
           <div className="brand-name">The Ledger</div>
-          <div className="brand-eyebrow">Office of Joe Liemandt</div>
+          <div className="brand-eyebrow">Action Tracker</div>
         </div>
       </div>
       <div className="topbar-right">

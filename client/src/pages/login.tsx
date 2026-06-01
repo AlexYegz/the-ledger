@@ -56,9 +56,11 @@ export default function LoginPage() {
         style={{ padding: "48px 32px 40px", borderRadius: 12 }}
       >
         <div className="login-brand-block">
-          <div className="login-brand-mark">L</div>
+          <div className="login-brand-mark">
+            <img src="/icons/icon-ledger.png" alt="" aria-hidden="true" />
+          </div>
           <div className="login-wordmark">The Ledger</div>
-          <div className="login-eyebrow">Office of Joe Liemandt</div>
+          <div className="login-eyebrow">Action Tracker</div>
           <div className="login-accent-bar" />
         </div>
 
@@ -125,7 +127,7 @@ export default function LoginPage() {
             textAlign: "center",
           }}
         >
-          OFFICE OF JOE LIEMANDT · DECISION TRACKER
+          OFFICE OF JOE LIEMANDT
         </div>
       </form>
     </div>
