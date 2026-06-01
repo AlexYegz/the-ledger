@@ -25,6 +25,8 @@
   --accent-current: #2D4A3E;
   --accent-dim: rgba(45, 74, 62, 0.10);
   --accent-glow: rgba(45, 74, 62, 0.30);
+  /* Halo: a lifted, glowing version of the accent so it actually blooms on cream. */
+  --accent-halo: #6FA68C;
 
   /* === Status colors === */
   --status-prog: #7FC5C2;
@@ -1346,20 +1348,34 @@ body {
   margin-bottom: 24px;
 }
 .login-brand-mark {
+  position: relative;
   width: 56px; height: 56px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 10px;
   display: grid; place-items: center;
-  overflow: hidden;
+  overflow: visible;
   margin-bottom: 14px;
   box-shadow: var(--shadow);
+  isolation: isolate;
+}
+.login-brand-mark::before {
+  content: "";
+  position: absolute;
+  inset: -40px;
+  background: radial-gradient(circle, var(--accent-halo) 0%, transparent 65%);
+  filter: blur(26px);
+  opacity: 0.85;
+  z-index: -1;
+  pointer-events: none;
 }
 .login-brand-mark img {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  border-radius: 10px;
 }
+/* (login-brand-mark img rule consolidated above) */
 .login-wordmark {
   font-family: 'Fraunces', serif;
   font-variation-settings: "opsz" 30, "SOFT" 50;
