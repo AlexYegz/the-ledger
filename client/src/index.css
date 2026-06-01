@@ -1370,11 +1370,12 @@ body {
   pointer-events: none;
 }
 .login-brand-mark img {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
   object-fit: contain;
   border-radius: 10px;
-  mix-blend-mode: multiply;
 }
 /* (login-brand-mark img rule consolidated above) */
 .login-wordmark {
@@ -1382,8 +1383,9 @@ body {
   font-variation-settings: "opsz" 30, "SOFT" 50;
   font-weight: 500;
   font-size: 28px;
+  letter-spacing: -0.012em;
   color: var(--text);
-  margin-bottom: 4px;
+  margin: 0 0 4px;
 }
 .login-eyebrow {
   font-family: 'Inter', sans-serif;
