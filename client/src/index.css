@@ -991,9 +991,9 @@ body {
   background: transparent;
 }
 .login-card {
-  width: 100%; max-width: 420px;
+  width: 100%; max-width: 360px;
   background: var(--bg-card); border: 1px solid var(--border-c);
-  border-radius: 14px; padding: 32px 30px;
+  border-radius: 14px; padding: 36px 32px;
   box-shadow: var(--shadow-card);
 }
 .login-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border-c); margin-bottom: 20px; }
@@ -1350,7 +1350,7 @@ body {
 .login-brand-mark {
   position: relative;
   width: 56px; height: 56px;
-  background: var(--bg-card);
+  background: #FFFFFF;
   border: 1px solid var(--border);
   border-radius: 10px;
   display: grid; place-items: center;
@@ -1374,6 +1374,7 @@ body {
   height: 100%;
   object-fit: contain;
   border-radius: 10px;
+  mix-blend-mode: multiply;
 }
 /* (login-brand-mark img rule consolidated above) */
 .login-wordmark {
