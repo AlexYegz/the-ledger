@@ -183,7 +183,7 @@ export default function AnswerPage() {
       <TopBar />
       <HeroBanner
         title="Answer Mode"
-        subtitle="Card stack for clearing the queue. Tap a decision, next card appears."
+        subtitle="Click through the cards to clear the queue"
       />
 
       <div className="answer-stage">

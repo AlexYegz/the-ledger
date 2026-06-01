@@ -159,8 +159,8 @@ export default function WorkspacePage({ readOnly = false }: { readOnly?: boolean
         title={readOnly ? "Status" : "Workspace"}
         subtitle={
           readOnly
-            ? "Read-only view of every item in flight. Click a row to drill into context and history."
-            : "Sortable list. Click a row to expand context, notes, and the notes thread."
+            ? "Read-only view of everything in progress"
+            : "Keep track of every action item"
         }
       />
 
