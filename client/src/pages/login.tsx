@@ -56,8 +56,10 @@ export default function LoginPage() {
         style={{ padding: "48px 32px 40px", borderRadius: 12 }}
       >
         <div className="login-brand-block">
-          <div className="login-brand-mark">
-            <img src="/icons/icon-ledger.png" alt="" aria-hidden="true" />
+          <div className="login-brand-mark-wrap">
+            <div className="login-brand-mark">
+              <img src="/icons/icon-ledger.png" alt="" aria-hidden="true" />
+            </div>
           </div>
           <div className="login-wordmark">The Ledger</div>
           <div className="login-eyebrow">Action Tracker</div>
