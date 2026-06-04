@@ -51,9 +51,16 @@ function revokeToken(req: Request): void {
   if (m) SESSIONS.delete(m[1]);
 }
 
-const PARSER_PROMPT = `You are parsing an email/request to fill a row in The Ledger — a decision tracker used by two executive assistants who support a principal named Joe.
+const PARSER_PROMPT = `You are parsing an email/request to fill a row in The Ledger — a decision tracker. The reader of the "context" field is Joe himself, so write directly TO Joe in second person ("you"), never about him in third person.
 
 Extract the fields below and return ONLY valid JSON — no explanation, no markdown, no code fences.
+
+Writing rules for the "context" field:
+- Address Joe in second person. Use "you" / "your". Never write "Joe" or "he" or "him" in the context.
+- Bold every other person's name (not Joe's) on first mention using <b> tags. Use first names only after the first mention.
+- Be brief and plain. No corporate filler, no hedging, no em dashes or en dashes.
+- 2-3 sentences of summary, then ONE final bolded yes/no question phrased to Joe in second person, e.g. <b>Want to meet?</b>, <b>Approve?</b>, <b>Take the call?</b>
+- If there is a deadline or hard time constraint, include <b>Time sensitive.</b> immediately before the final question.
 
 {
   "date_received": "YYYY-MM-DD (date the email was sent; today's date if not found)",
@@ -62,7 +69,7 @@ Extract the fields below and return ONLY valid JSON — no explanation, no markd
   "sender_email": "Sender's email address, or null if not present",
   "subject": "Exact email subject line",
   "category": "ONE of: meeting_request, approval, response_needed, invitation, intro, funding, sales, other",
-  "context": "2-3 sentences summarizing the email. Bold all names except Joe using <b> tags. Never use Joe's last name. End with a single bolded yes/no question for Joe as the final sentence, e.g. <b>Does Joe want to meet?</b> If there is a deadline or hard time constraint, include <b>Time sensitive.</b> before the final question.",
+  "context": "2-3 sentences addressed directly to Joe in second person, following the writing rules above. End with one bolded yes/no question to Joe.",
   "is_time_sensitive": true or false,
   "implied_actions": {
     "team_to_action": "Brief lowercase fragment describing what the team would do if Joe picks Team to Action, e.g. 'accept invitation and schedule shaping call'",
@@ -70,7 +77,13 @@ Extract the fields below and return ONLY valid JSON — no explanation, no markd
     "principal_to_respond": "Brief lowercase fragment for Joe handling it himself",
     "delegate": "Brief lowercase fragment for delegation, e.g. 'forward to chief of staff'"
   }
-}`;
+}
+
+Example of correct context tone:
+  "<b>Arun Rao</b> wants to introduce you to <b>Emma Brunskill</b>, a Stanford CS professor researching ML/RL in education. Arun suggests meeting in Palo Alto this week to discuss applying RCT methodology to Alpha School. <b>Want to meet with Emma?</b>"
+
+Example of WRONG tone (do not do this):
+  "Arun Rao is introducing Joe to Emma Brunskill... Does Joe want to meet?"`;
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {
   const sess = readSession(req);
