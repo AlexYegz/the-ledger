@@ -4,11 +4,21 @@ import { Clock, Trash2, Archive, ArchiveRestore, RotateCcw } from "lucide-react"
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { CategoryPill, DecisionTag, FlameIcon, OwnerAvatar, StatusTag } from "@/components/Bits";
-import { STATUS_LABEL, STATUS_CLASS, fmtDate, fmtNoteDate, relTime } from "@/lib/labels";
-import type { Item, Note, Activity, Status, Decision } from "@shared/schema";
+import { CATEGORY_LABEL, STATUS_LABEL, STATUS_CLASS, fmtDate, fmtNoteDate, relTime } from "@/lib/labels";
+import type { Item, Note, Activity, Category, Status, Decision } from "@shared/schema";
 import { useAuth } from "@/lib/auth";
 
 const STATUSES: Status[] = ["not_started", "in_progress", "waiting", "complete", "canceled"];
+const CATEGORIES: Category[] = [
+  "meeting_request",
+  "approval",
+  "response_needed",
+  "invitation",
+  "intro",
+  "funding",
+  "sales",
+  "other",
+];
 const DECISIONS: { v: Decision; label: string }[] = [
   { v: "team_to_action", label: "Team to action" },
   { v: "team_to_decline", label: "Team to decline" },
@@ -147,8 +157,16 @@ export function LedgerRow({
           <b>{item.sender_name}</b>
           {item.sender_org ? `, ${item.sender_org}` : ""}
         </div>
-        <div className="row-pills">
-          <CategoryPill category={item.category} />
+        <div className="row-pills" onClick={stop}>
+          {readOnly ? (
+            <CategoryPill category={item.category} />
+          ) : (
+            <CategorySelect
+              value={item.category as Category}
+              onChange={(v) => patchMut.mutate({ category: v })}
+              testId={`select-category-${item.id}`}
+            />
+          )}
         </div>
       </div>
 
@@ -697,6 +715,41 @@ function OwnerSelect({
   );
 }
 
+function CategorySelect({
+  value,
+  onChange,
+  testId,
+}: {
+  value: Category;
+  onChange: (v: Category) => void;
+  testId?: string;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <div className="category-pill-trigger" data-testid={testId} title="Click to change category">
+          <CategoryPill category={value} />
+          <span className="caret">▾</span>
+        </div>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="p-0 border-0 bg-transparent shadow-none">
+        <div className="lm-dropdown">
+          {CATEGORIES.map((c) => (
+            <div
+              key={c}
+              className={`opt ${c === value ? "selected" : ""}`}
+              onClick={() => onChange(c)}
+              data-testid={`option-category-${c}`}
+            >
+              <CategoryPill category={c} />
+            </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function StatusSelect({
   value,
   onChange,
@@ -802,6 +855,11 @@ function humanizeActivity(a: Activity): string {
     }
     case "parsed":
       return `${who} parsed this from an email.`;
+    case "category_changed": {
+      const to = detail?.to;
+      const label = to ? (CATEGORY_LABEL[to as Category] || String(to)) : "";
+      return label ? `${who} changed category to ${label}.` : `${who} changed the category.`;
+    }
     case "context_edited": {
       const fields: string[] = Array.isArray(detail?.fields) ? detail.fields : [];
       const pretty = fields

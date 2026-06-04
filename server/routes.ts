@@ -340,6 +340,8 @@ export async function registerRoutes(
     const timeSensitiveChanging =
       patch.is_time_sensitive !== undefined &&
       !!patch.is_time_sensitive !== !!existing.is_time_sensitive;
+    const categoryChanging =
+      patch.category !== undefined && patch.category !== existing.category;
     const contextChanging =
       patch.context !== undefined && patch.context !== existing.context;
     const subjectChanging =
@@ -433,6 +435,14 @@ export async function registerRoutes(
         actor,
         event: "time_sensitive_changed",
         detail: JSON.stringify({ to: !!updated.is_time_sensitive }),
+      });
+    }
+    if (categoryChanging) {
+      storage.logActivity({
+        item_id: updated.id,
+        actor,
+        event: "category_changed",
+        detail: JSON.stringify({ from: existing.category, to: updated.category }),
       });
     }
     if (contextChanging || subjectChanging || emailUrlChanging) {

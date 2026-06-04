@@ -494,6 +494,21 @@ body {
 }
 .team-note-add:hover { color: var(--respond); border-color: var(--respond); border-style: solid; }
 
+/* ----- Category pill (clickable trigger) ----- */
+.category-pill-trigger {
+  display: inline-flex; align-items: center; gap: 4px;
+  cursor: pointer;
+  padding: 2px 4px 2px 0;
+  border-radius: 999px;
+  transition: opacity 0.15s ease;
+}
+.category-pill-trigger:hover { opacity: 0.78; }
+.category-pill-trigger .caret {
+  font-size: 9px;
+  color: var(--text-dim);
+  line-height: 1;
+}
+
 /* ----- Context (AI summary) edit ----- */
 .context-clickable { cursor: pointer; border-radius: 8px; transition: background 0.15s ease; margin: -6px -8px 8px; padding: 6px 8px; }
 .context-clickable:hover { background: rgba(0,0,0,0.025); }
