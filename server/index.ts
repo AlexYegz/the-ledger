@@ -15,15 +15,19 @@ declare module "http" {
   }
 }
 
+// Body size limit raised to 50mb so the ledger can accept long PDFs
+// (folios, intros, AAC statements). Default is 100kb which rejects
+// anything past a couple of pages with "request entity too large".
 app.use(
   express.json({
+    limit: "50mb",
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     },
   }),
 );
 
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false, limit: "50mb" }));
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
