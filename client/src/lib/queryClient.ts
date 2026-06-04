@@ -1,6 +1,16 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-const API_BASE = "__PORT_5000__".startsWith("__") ? "" : "__PORT_5000__";
+// API base resolution order:
+//   1. VITE_API_BASE if set at build time (deployed frontend points at Railway)
+//   2. __PORT_5000__ placeholder if rewritten by deploy_website
+//   3. empty string (same-origin) for local dev
+const PORT_PLACEHOLDER = "__PORT_5000__";
+const ENV_BASE = (import.meta.env.VITE_API_BASE as string | undefined) || "";
+const API_BASE = ENV_BASE
+  ? ENV_BASE.replace(/\/$/, "")
+  : PORT_PLACEHOLDER.startsWith("__")
+    ? ""
+    : PORT_PLACEHOLDER;
 
 // Token is stored in module scope (and mirrored into the AuthProvider for re-renders).
 // localStorage/sessionStorage are blocked in the sandboxed iframe, and cookies

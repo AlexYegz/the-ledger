@@ -58,7 +58,7 @@ export default function LoginPage() {
         <div className="login-brand-block">
           <div className="login-brand-mark-wrap">
             <div className="login-brand-mark">
-              <img src="/icons/icon-ledger.png" alt="" aria-hidden="true" />
+              <img src="icons/icon-ledger.png" alt="" aria-hidden="true" />
             </div>
           </div>
           <div className="login-wordmark">The Ledger</div>

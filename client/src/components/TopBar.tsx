@@ -30,7 +30,7 @@ export function TopBar() {
         data-testid="brand"
       >
         <div className="brand-mark">
-          <img src="/icons/icon-ledger.png" alt="" aria-hidden="true" />
+          <img src="icons/icon-ledger.png" alt="" aria-hidden="true" />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
           <div className="brand-name">The Ledger</div>
