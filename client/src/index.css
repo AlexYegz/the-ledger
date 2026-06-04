@@ -494,6 +494,53 @@ body {
 }
 .team-note-add:hover { color: var(--respond); border-color: var(--respond); border-style: solid; }
 
+/* ----- Context (AI summary) edit ----- */
+.context-clickable { cursor: pointer; border-radius: 8px; transition: background 0.15s ease; margin: -6px -8px 8px; padding: 6px 8px; }
+.context-clickable:hover { background: rgba(0,0,0,0.025); }
+.context-clickable:hover .context-edit-pencil { opacity: 1; }
+.context-clickable .subject-line { display: flex; align-items: center; gap: 10px; }
+.context-edit-pencil {
+  font-family: 'Inter', sans-serif; font-size: 9px; letter-spacing: 0.18em;
+  color: var(--text-dim); opacity: 0; transition: opacity 0.15s ease;
+  margin-left: auto;
+}
+
+.context-edit {
+  display: flex; flex-direction: column; gap: 10px;
+  margin: -6px -8px 14px;
+  padding: 12px;
+  border: 1px solid var(--respond);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.02);
+}
+.context-edit-field { display: flex; flex-direction: column; gap: 5px; }
+.context-edit-label {
+  font-family: 'Inter', sans-serif; font-size: 9px; letter-spacing: 0.18em;
+  color: var(--respond);
+  display: flex; align-items: baseline; gap: 8px;
+}
+.context-edit-hint {
+  font-family: 'Inter', sans-serif; font-size: 9px; letter-spacing: 0.05em;
+  color: var(--text-dim); text-transform: none; font-weight: 400;
+}
+.context-edit-input,
+.context-edit-textarea {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border-c);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  outline: none;
+}
+.context-edit-textarea { resize: vertical; min-height: 96px; }
+.context-edit-input:focus,
+.context-edit-textarea:focus { border-color: var(--respond); }
+.context-edit-actions { display: flex; gap: 8px; align-items: center; }
+
 .card-decision-prompt {
   font-size: 13px; color: var(--text-mid); margin-bottom: 14px;
   display: flex; align-items: center; gap: 8px;

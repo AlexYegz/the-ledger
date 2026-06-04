@@ -270,17 +270,29 @@ export function LedgerRow({
 
       {expanded && (
         <div className="row-expanded-content" onClick={stop}>
-          <div className="subject-line">{item.subject}</div>
-          <div className="context-block">
-            <span dangerouslySetInnerHTML={{ __html: item.context }} />
-            {item.email_url ? (
-              <div style={{ marginTop: 8 }}>
-                <a href={item.email_url} target="_blank" rel="noreferrer" className="read-email">
-                  READ EMAIL →
-                </a>
+          {readOnly ? (
+            <>
+              <div className="subject-line">{item.subject}</div>
+              <div className="context-block">
+                <span dangerouslySetInnerHTML={{ __html: item.context }} />
+                {item.email_url ? (
+                  <div style={{ marginTop: 8 }}>
+                    <a href={item.email_url} target="_blank" rel="noreferrer" className="read-email">
+                      READ EMAIL →
+                    </a>
+                  </div>
+                ) : null}
               </div>
-            ) : null}
-          </div>
+            </>
+          ) : (
+            <ContextEditor
+              itemId={item.id}
+              subject={item.subject}
+              context={item.context}
+              emailUrl={item.email_url}
+              onSave={(p) => patchMut.mutate(p)}
+            />
+          )}
 
           {readOnly ? (
             item.team_note_for_principal && (
@@ -410,6 +422,137 @@ export function LedgerRow({
           })()}
         </div>
       )}
+    </div>
+  );
+}
+
+function ContextEditor({
+  itemId,
+  subject,
+  context,
+  emailUrl,
+  onSave,
+}: {
+  itemId: string;
+  subject: string;
+  context: string;
+  emailUrl: string | null;
+  onSave: (patch: { subject?: string; context?: string; email_url?: string | null }) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [subjectDraft, setSubjectDraft] = useState(subject);
+  const [contextDraft, setContextDraft] = useState(context);
+  const [emailUrlDraft, setEmailUrlDraft] = useState(emailUrl || "");
+
+  const enter = () => {
+    setSubjectDraft(subject);
+    setContextDraft(context);
+    setEmailUrlDraft(emailUrl || "");
+    setEditing(true);
+  };
+
+  const commit = () => {
+    const patch: { subject?: string; context?: string; email_url?: string | null } = {};
+    if (subjectDraft !== subject) patch.subject = subjectDraft.trim() || subject;
+    if (contextDraft !== context) patch.context = contextDraft;
+    const nextUrl = emailUrlDraft.trim() ? emailUrlDraft.trim() : null;
+    if (nextUrl !== (emailUrl || null)) patch.email_url = nextUrl;
+    if (Object.keys(patch).length > 0) onSave(patch);
+    setEditing(false);
+  };
+  const cancel = () => setEditing(false);
+
+  if (editing) {
+    return (
+      <div className="context-edit">
+        <div className="context-edit-field">
+          <div className="context-edit-label">SUBJECT</div>
+          <input
+            className="context-edit-input"
+            value={subjectDraft}
+            onChange={(e) => setSubjectDraft(e.target.value)}
+            data-testid={`input-subject-${itemId}`}
+          />
+        </div>
+        <div className="context-edit-field">
+          <div className="context-edit-label">
+            CONTEXT <span className="context-edit-hint">HTML &lt;b&gt; allowed. End with one bolded yes/no question to Joe.</span>
+          </div>
+          <textarea
+            className="context-edit-textarea"
+            value={contextDraft}
+            rows={5}
+            autoFocus
+            onChange={(e) => setContextDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                commit();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                cancel();
+              }
+            }}
+            data-testid={`input-context-${itemId}`}
+          />
+        </div>
+        <div className="context-edit-field">
+          <div className="context-edit-label">EMAIL URL <span className="context-edit-hint">OPTIONAL</span></div>
+          <input
+            className="context-edit-input"
+            value={emailUrlDraft}
+            placeholder="https://mail.google.com/…"
+            onChange={(e) => setEmailUrlDraft(e.target.value)}
+            data-testid={`input-email-url-${itemId}`}
+          />
+        </div>
+        <div className="context-edit-actions">
+          <button
+            className="team-note-save"
+            onClick={commit}
+            data-testid={`button-save-context-${itemId}`}
+          >
+            SAVE
+          </button>
+          <button
+            className="team-note-cancel"
+            onClick={cancel}
+            data-testid={`button-cancel-context-${itemId}`}
+          >
+            CANCEL
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="context-clickable"
+      onClick={enter}
+      data-testid={`button-edit-context-${itemId}`}
+      title="Click to edit subject, context, or email link"
+    >
+      <div className="subject-line">
+        {subject}
+        <span className="context-edit-pencil">EDIT</span>
+      </div>
+      <div className="context-block">
+        <span dangerouslySetInnerHTML={{ __html: context }} />
+        {emailUrl ? (
+          <div style={{ marginTop: 8 }}>
+            <a
+              href={emailUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="read-email"
+              onClick={(e) => e.stopPropagation()}
+            >
+              READ EMAIL →
+            </a>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -659,6 +802,15 @@ function humanizeActivity(a: Activity): string {
     }
     case "parsed":
       return `${who} parsed this from an email.`;
+    case "context_edited": {
+      const fields: string[] = Array.isArray(detail?.fields) ? detail.fields : [];
+      const pretty = fields
+        .map((f) => (f === "email_url" ? "email link" : f))
+        .join(", ");
+      return pretty
+        ? `${who} edited the ${pretty}.`
+        : `${who} edited the context.`;
+    }
     default:
       return `${who} — ${a.event.replace(/_/g, " ")}`;
   }

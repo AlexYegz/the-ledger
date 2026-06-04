@@ -340,6 +340,13 @@ export async function registerRoutes(
     const timeSensitiveChanging =
       patch.is_time_sensitive !== undefined &&
       !!patch.is_time_sensitive !== !!existing.is_time_sensitive;
+    const contextChanging =
+      patch.context !== undefined && patch.context !== existing.context;
+    const subjectChanging =
+      patch.subject !== undefined && patch.subject !== existing.subject;
+    const emailUrlChanging =
+      patch.email_url !== undefined &&
+      (patch.email_url || null) !== (existing.email_url || null);
 
     if (decisionChanging) {
       patch.decided_at = undoingDecision ? null : now;
@@ -426,6 +433,18 @@ export async function registerRoutes(
         actor,
         event: "time_sensitive_changed",
         detail: JSON.stringify({ to: !!updated.is_time_sensitive }),
+      });
+    }
+    if (contextChanging || subjectChanging || emailUrlChanging) {
+      const fields: string[] = [];
+      if (subjectChanging) fields.push("subject");
+      if (contextChanging) fields.push("context");
+      if (emailUrlChanging) fields.push("email_url");
+      storage.logActivity({
+        item_id: updated.id,
+        actor,
+        event: "context_edited",
+        detail: JSON.stringify({ fields }),
       });
     }
 
