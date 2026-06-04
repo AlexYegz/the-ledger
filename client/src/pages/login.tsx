@@ -8,7 +8,7 @@ export default function LoginPage() {
   const [role, setRole] = useState<"principal" | "team">("principal");
   const [identity, setIdentity] = useState<"meghan" | "alexandra">("meghan");
   const [busy, setBusy] = useState(false);
-  const { refetch } = useAuth();
+  const { setMe } = useAuth();
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
@@ -22,17 +22,20 @@ export default function LoginPage() {
       const data = await res.json();
       if (data?.token) setAuthToken(data.token);
 
-      // CRITICAL: Pre-seed the auth query cache BEFORE navigating.
-      // Otherwise ProtectedRoute mounts before AuthProvider re-renders,
-      // sees role=null, and bounces back to /login. That was the
-      // "have to log in twice" bug.
+      // Mirror auth into the AuthProvider's local state (synchronous
+      // on the next render) and also into the query cache so any other
+      // consumer reading /api/auth/me sees the new role too. We then
+      // wait a tick so React has a chance to commit the state update
+      // before the route guard mounts.
+      setMe({ role: data.role, identity: data.identity });
       queryClient.setQueryData(["/api/auth/me"], {
         role: data.role,
         identity: data.identity,
       });
-      // Also refetch in the background to confirm against the server.
-      // We've already seeded the cache, so don't await.
-      refetch();
+
+      // Yield once so the state update commits and AuthProvider
+      // re-renders before ProtectedRoute's effect runs.
+      await new Promise((r) => setTimeout(r, 0));
 
       const targetRole = data.role;
       navigate(targetRole === "principal" ? "/answer" : "/workspace");
