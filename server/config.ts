@@ -1,6 +1,14 @@
 // Internal domain configuration.
 // Override via env: INTERNAL_DOMAINS="alpha.school,trilogy.com,esw.com"
-const DEFAULT_INTERNAL_DOMAINS = ["alpha.school", "trilogy.com", "esw.com"];
+const DEFAULT_INTERNAL_DOMAINS = [
+  "alpha.school",
+  "trilogy.com",
+  "esw.com",
+  "superbuilders.school",
+  "gt.school",
+  "sportsacademy.school",
+  "2hourlearning.com",
+];
 export const INTERNAL_DOMAINS = (process.env.INTERNAL_DOMAINS || "")
   .split(",")
   .map((d) => d.trim().toLowerCase())
