@@ -2,7 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer } from "node:http";
 import type { Server } from "node:http";
 import crypto from "node:crypto";
-import { storage, maybeSeed } from "./storage";
+import { storage, sqlite, maybeSeed } from "./storage";
 import {
   insertItemSchema,
   insertNoteSchema,
@@ -18,17 +18,29 @@ import {
 import { z } from "zod";
 
 // ============================================================
-// Token-based auth (cookies don't survive the proxy iframe)
+// Token-based auth (cookies don't survive the proxy iframe).
+// Sessions are persisted in SQLite so they survive deploys/restarts.
 // ============================================================
 type Role = "principal" | "team";
 type Identity = "meghan" | "alexandra" | "joe";
 type TokenSession = { role: Role; identity: Identity; createdAt: number };
-const SESSIONS = new Map<string, TokenSession>();
-const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
+
+const sessionInsert = sqlite.prepare(
+  "INSERT INTO sessions (token, role, identity, created_at) VALUES (?, ?, ?, ?)",
+);
+const sessionSelect = sqlite.prepare(
+  "SELECT role, identity, created_at FROM sessions WHERE token = ?",
+);
+const sessionDelete = sqlite.prepare("DELETE FROM sessions WHERE token = ?");
+const sessionPurge = sqlite.prepare("DELETE FROM sessions WHERE created_at < ?");
+
+// Sweep expired sessions on boot.
+sessionPurge.run(Date.now() - SESSION_TTL_MS);
 
 function issueToken(role: Role, identity: Identity): string {
   const token = crypto.randomBytes(32).toString("hex");
-  SESSIONS.set(token, { role, identity, createdAt: Date.now() });
+  sessionInsert.run(token, role, identity, Date.now());
   return token;
 }
 
@@ -36,19 +48,21 @@ function readSession(req: Request): TokenSession | null {
   const h = req.headers.authorization || "";
   const m = /^Bearer\s+(.+)$/i.exec(h);
   if (!m) return null;
-  const sess = SESSIONS.get(m[1]);
-  if (!sess) return null;
-  if (Date.now() - sess.createdAt > SESSION_TTL_MS) {
-    SESSIONS.delete(m[1]);
+  const row = sessionSelect.get(m[1]) as
+    | { role: Role; identity: Identity; created_at: number }
+    | undefined;
+  if (!row) return null;
+  if (Date.now() - row.created_at > SESSION_TTL_MS) {
+    sessionDelete.run(m[1]);
     return null;
   }
-  return sess;
+  return { role: row.role, identity: row.identity, createdAt: row.created_at };
 }
 
 function revokeToken(req: Request): void {
   const h = req.headers.authorization || "";
   const m = /^Bearer\s+(.+)$/i.exec(h);
-  if (m) SESSIONS.delete(m[1]);
+  if (m) sessionDelete.run(m[1]);
 }
 
 const PARSER_PROMPT = `You are parsing an email/request to fill a row in The Ledger — a decision tracker. The reader of the "context" field is Joe himself, so write directly TO Joe in second person ("you"), never about him in third person.

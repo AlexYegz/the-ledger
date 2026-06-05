@@ -12,13 +12,24 @@ const API_BASE = ENV_BASE
     ? ""
     : PORT_PLACEHOLDER;
 
-// Token is stored in module scope (and mirrored into the AuthProvider for re-renders).
-// localStorage/sessionStorage are blocked in the sandboxed iframe, and cookies
-// don't survive the proxy, so the token must live in memory only.
-let AUTH_TOKEN: string | null = null;
+// Token persistence: when the app runs on its own origin (Railway), localStorage
+// works fine. When it runs inside the sandboxed iframe preview, localStorage may
+// throw — we catch and degrade to in-memory only.
+const TOKEN_STORAGE_KEY = "ledger.auth_token";
+function safeStorageGet(): string | null {
+  try { return window.localStorage.getItem(TOKEN_STORAGE_KEY); } catch { return null; }
+}
+function safeStorageSet(token: string | null) {
+  try {
+    if (token) window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    else window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+  } catch { /* sandboxed — ignore */ }
+}
+let AUTH_TOKEN: string | null = safeStorageGet();
 
 export function setAuthToken(token: string | null) {
   AUTH_TOKEN = token;
+  safeStorageSet(token);
 }
 
 export function getAuthToken(): string | null {

@@ -27,7 +27,7 @@ try {
 if (process.env.DATA_DIR && !existsSync(DB_PATH) && existsSync("data.db")) {
   try { copyFileSync("data.db", DB_PATH); } catch {}
 }
-const sqlite = new Database(DB_PATH);
+export const sqlite = new Database(DB_PATH);
 sqlite.pragma("journal_mode = WAL");
 
 // Ensure tables exist (lightweight migrate-on-boot for dev/prod).
@@ -77,6 +77,13 @@ CREATE TABLE IF NOT EXISTS activity_log (
 );
 CREATE INDEX IF NOT EXISTS idx_notes_item ON notes(item_id);
 CREATE INDEX IF NOT EXISTS idx_activity_item ON activity_log(item_id);
+CREATE TABLE IF NOT EXISTS sessions (
+  token TEXT PRIMARY KEY,
+  role TEXT NOT NULL,
+  identity TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_created ON sessions(created_at);
 `);
 
 // Migrations for existing DBs: add new columns idempotently.
