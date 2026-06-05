@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Clock, Trash2, Archive, ArchiveRestore, RotateCcw } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -305,6 +305,10 @@ export function LedgerRow({
           ) : (
             <ContextEditor
               itemId={item.id}
+              senderName={item.sender_name}
+              senderOrg={item.sender_org}
+              senderEmail={item.sender_email}
+              dateReceived={item.date_received}
               subject={item.subject}
               context={item.context}
               emailUrl={item.email_url}
@@ -444,51 +448,149 @@ export function LedgerRow({
   );
 }
 
+type ContextEditorPatch = {
+  sender_name?: string;
+  sender_org?: string | null;
+  sender_email?: string | null;
+  date_received?: string;
+  subject?: string;
+  context?: string;
+  email_url?: string | null;
+};
+
 function ContextEditor({
   itemId,
+  senderName,
+  senderOrg,
+  senderEmail,
+  dateReceived,
   subject,
   context,
   emailUrl,
   onSave,
 }: {
   itemId: string;
+  senderName: string;
+  senderOrg: string | null;
+  senderEmail: string | null;
+  dateReceived: string;
   subject: string;
   context: string;
   emailUrl: string | null;
-  onSave: (patch: { subject?: string; context?: string; email_url?: string | null }) => void;
+  onSave: (patch: ContextEditorPatch) => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [senderNameDraft, setSenderNameDraft] = useState(senderName);
+  const [senderOrgDraft, setSenderOrgDraft] = useState(senderOrg || "");
+  const [senderEmailDraft, setSenderEmailDraft] = useState(senderEmail || "");
+  const [dateReceivedDraft, setDateReceivedDraft] = useState(dateReceived);
   const [subjectDraft, setSubjectDraft] = useState(subject);
   const [contextDraft, setContextDraft] = useState(context);
   const [emailUrlDraft, setEmailUrlDraft] = useState(emailUrl || "");
 
   const enter = () => {
+    setSenderNameDraft(senderName);
+    setSenderOrgDraft(senderOrg || "");
+    setSenderEmailDraft(senderEmail || "");
+    setDateReceivedDraft(dateReceived);
     setSubjectDraft(subject);
     setContextDraft(context);
     setEmailUrlDraft(emailUrl || "");
     setEditing(true);
   };
 
+  const nullable = (s: string) => (s.trim() ? s.trim() : null);
+
   const commit = () => {
-    const patch: { subject?: string; context?: string; email_url?: string | null } = {};
+    const patch: ContextEditorPatch = {};
+    if (senderNameDraft.trim() && senderNameDraft.trim() !== senderName) {
+      patch.sender_name = senderNameDraft.trim();
+    }
+    if (nullable(senderOrgDraft) !== (senderOrg || null)) {
+      patch.sender_org = nullable(senderOrgDraft);
+    }
+    if (nullable(senderEmailDraft) !== (senderEmail || null)) {
+      patch.sender_email = nullable(senderEmailDraft);
+    }
+    if (dateReceivedDraft && dateReceivedDraft !== dateReceived) {
+      patch.date_received = dateReceivedDraft;
+    }
     if (subjectDraft !== subject) patch.subject = subjectDraft.trim() || subject;
     if (contextDraft !== context) patch.context = contextDraft;
-    const nextUrl = emailUrlDraft.trim() ? emailUrlDraft.trim() : null;
+    const nextUrl = nullable(emailUrlDraft);
     if (nextUrl !== (emailUrl || null)) patch.email_url = nextUrl;
     if (Object.keys(patch).length > 0) onSave(patch);
     setEditing(false);
   };
   const cancel = () => setEditing(false);
 
+  const onKey = (e: ReactKeyboardEvent) => {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      commit();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancel();
+    }
+  };
+
   if (editing) {
     return (
       <div className="context-edit">
+        <div className="context-edit-row">
+          <div className="context-edit-field">
+            <div className="context-edit-label">SENDER NAME</div>
+            <input
+              className="context-edit-input"
+              value={senderNameDraft}
+              onChange={(e) => setSenderNameDraft(e.target.value)}
+              onKeyDown={onKey}
+              data-testid={`input-sender-name-${itemId}`}
+            />
+          </div>
+          <div className="context-edit-field">
+            <div className="context-edit-label">ORGANIZATION</div>
+            <input
+              className="context-edit-input"
+              value={senderOrgDraft}
+              onChange={(e) => setSenderOrgDraft(e.target.value)}
+              onKeyDown={onKey}
+              placeholder="e.g. Stanford"
+              data-testid={`input-sender-org-${itemId}`}
+            />
+          </div>
+        </div>
+        <div className="context-edit-row">
+          <div className="context-edit-field">
+            <div className="context-edit-label">SENDER EMAIL</div>
+            <input
+              className="context-edit-input"
+              value={senderEmailDraft}
+              onChange={(e) => setSenderEmailDraft(e.target.value)}
+              onKeyDown={onKey}
+              placeholder="name@company.com"
+              data-testid={`input-sender-email-${itemId}`}
+            />
+          </div>
+          <div className="context-edit-field context-edit-field-date">
+            <div className="context-edit-label">DATE RECEIVED</div>
+            <input
+              type="date"
+              className="context-edit-input"
+              value={dateReceivedDraft}
+              onChange={(e) => setDateReceivedDraft(e.target.value)}
+              onKeyDown={onKey}
+              data-testid={`input-date-received-${itemId}`}
+            />
+          </div>
+        </div>
         <div className="context-edit-field">
           <div className="context-edit-label">SUBJECT</div>
           <input
             className="context-edit-input"
             value={subjectDraft}
             onChange={(e) => setSubjectDraft(e.target.value)}
+            onKeyDown={onKey}
             data-testid={`input-subject-${itemId}`}
           />
         </div>
@@ -500,17 +602,8 @@ function ContextEditor({
             className="context-edit-textarea"
             value={contextDraft}
             rows={5}
-            autoFocus
             onChange={(e) => setContextDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault();
-                commit();
-              } else if (e.key === "Escape") {
-                e.preventDefault();
-                cancel();
-              }
-            }}
+            onKeyDown={onKey}
             data-testid={`input-context-${itemId}`}
           />
         </div>
@@ -521,6 +614,7 @@ function ContextEditor({
             value={emailUrlDraft}
             placeholder="https://mail.google.com/…"
             onChange={(e) => setEmailUrlDraft(e.target.value)}
+            onKeyDown={onKey}
             data-testid={`input-email-url-${itemId}`}
           />
         </div>
@@ -862,9 +956,16 @@ function humanizeActivity(a: Activity): string {
     }
     case "context_edited": {
       const fields: string[] = Array.isArray(detail?.fields) ? detail.fields : [];
-      const pretty = fields
-        .map((f) => (f === "email_url" ? "email link" : f))
-        .join(", ");
+      const FIELD_LABEL: Record<string, string> = {
+        sender_name: "sender name",
+        sender_org: "organization",
+        sender_email: "sender email",
+        date_received: "date received",
+        subject: "subject",
+        context: "context",
+        email_url: "email link",
+      };
+      const pretty = fields.map((f) => FIELD_LABEL[f] || f).join(", ");
       return pretty
         ? `${who} edited the ${pretty}.`
         : `${who} edited the context.`;

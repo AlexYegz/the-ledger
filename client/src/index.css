@@ -529,6 +529,11 @@ body {
   background: rgba(255,255,255,0.02);
 }
 .context-edit-field { display: flex; flex-direction: column; gap: 5px; }
+.context-edit-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.context-edit-field-date input { font-variant-numeric: tabular-nums; }
+@media (max-width: 720px) {
+  .context-edit-row { grid-template-columns: 1fr; }
+}
 .context-edit-label {
   font-family: 'Inter', sans-serif; font-size: 9px; letter-spacing: 0.18em;
   color: var(--respond);

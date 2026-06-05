@@ -445,16 +445,28 @@ export async function registerRoutes(
         detail: JSON.stringify({ from: existing.category, to: updated.category }),
       });
     }
-    if (contextChanging || subjectChanging || emailUrlChanging) {
-      const fields: string[] = [];
-      if (subjectChanging) fields.push("subject");
-      if (contextChanging) fields.push("context");
-      if (emailUrlChanging) fields.push("email_url");
+    const detailFields: string[] = [];
+    if (patch.sender_name !== undefined && patch.sender_name !== existing.sender_name) {
+      detailFields.push("sender_name");
+    }
+    if (patch.sender_org !== undefined && (patch.sender_org || null) !== (existing.sender_org || null)) {
+      detailFields.push("sender_org");
+    }
+    if (patch.sender_email !== undefined && (patch.sender_email || null) !== (existing.sender_email || null)) {
+      detailFields.push("sender_email");
+    }
+    if (patch.date_received !== undefined && patch.date_received !== existing.date_received) {
+      detailFields.push("date_received");
+    }
+    if (subjectChanging) detailFields.push("subject");
+    if (contextChanging) detailFields.push("context");
+    if (emailUrlChanging) detailFields.push("email_url");
+    if (detailFields.length > 0) {
       storage.logActivity({
         item_id: updated.id,
         actor,
         event: "context_edited",
-        detail: JSON.stringify({ fields }),
+        detail: JSON.stringify({ fields: detailFields }),
       });
     }
 
