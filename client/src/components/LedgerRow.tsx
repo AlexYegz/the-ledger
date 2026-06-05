@@ -283,7 +283,16 @@ export function LedgerRow({
             <ActivityPopover itemId={item.id} />
           </PopoverContent>
         </Popover>
-        <div className="row-expand" data-testid={`button-expand-${item.id}`}>▶</div>
+        <div
+          className="row-expand"
+          data-testid={`button-expand-${item.id}`}
+          onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
+          title={expanded ? "Collapse" : "Expand"}
+          role="button"
+          aria-label={expanded ? "Collapse" : "Expand"}
+        >
+          {expanded ? "▾" : "▸"}
+        </div>
       </div>
 
       {expanded && (
