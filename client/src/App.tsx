@@ -17,14 +17,15 @@ import StatusPage from "@/pages/status";
 import AnswerPage from "@/pages/answer";
 
 function HomeRedirect() {
-  const { me, isLoading } = useAuth();
+  const { me, isLoading, actAsJoe } = useAuth();
   const [, navigate] = useLocation();
   useEffect(() => {
     if (isLoading) return;
     if (!me.role) navigate("/login");
     else if (me.role === "principal") navigate("/answer");
+    else if (actAsJoe) navigate("/answer");
     else navigate("/workspace");
-  }, [me, isLoading, navigate]);
+  }, [me, isLoading, actAsJoe, navigate]);
   return null;
 }
 
@@ -55,12 +56,12 @@ function AppRouter() {
       <Route path="/" component={HomeRedirect} />
       <Route path="/login" component={LoginPage} />
       <Route path="/answer">
-        <ProtectedRoute needs="principal">
+        <ProtectedRoute>
           <AnswerPage />
         </ProtectedRoute>
       </Route>
       <Route path="/status">
-        <ProtectedRoute needs="principal">
+        <ProtectedRoute>
           <StatusPage />
         </ProtectedRoute>
       </Route>

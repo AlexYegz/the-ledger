@@ -116,7 +116,26 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
 
 function actorForReq(req: Request): string {
   const sess = (req as any).auth as TokenSession | undefined;
-  return sess?.identity || sess?.role || "system";
+  const base = sess?.identity || sess?.role || "system";
+  // Team members can opt into "recording for Joe" mode by setting the
+  // X-Acting-As: joe header. The actor we log keeps their real identity
+  // so the audit trail shows who actually clicked, but flags it as a
+  // proxy action. We refuse the header from anyone other than a real
+  // team session to keep this from being abused via curl.
+  const actingAs = String(req.headers["x-acting-as"] || "").toLowerCase().trim();
+  if (actingAs === "joe" && sess?.role === "team") {
+    return `${base} (as joe)`;
+  }
+  return base;
+}
+
+// True when the current request is a team member recording for Joe.
+// Used to attribute principal notes to Joe even though the click came
+// from Alexandra or Meghan.
+function isActingAsJoe(req: Request): boolean {
+  const sess = (req as any).auth as TokenSession | undefined;
+  const actingAs = String(req.headers["x-acting-as"] || "").toLowerCase().trim();
+  return actingAs === "joe" && sess?.role === "team";
 }
 
 // -------------------------------------------------------------

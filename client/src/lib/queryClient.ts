@@ -36,8 +36,22 @@ export function getAuthToken(): string | null {
   return AUTH_TOKEN;
 }
 
+// Read "acting as Joe" flag from localStorage on every request so the
+// auth.tsx toggle and any other tab stay in sync without prop-drilling.
+const ACT_AS_JOE_KEY = "the-ledger.act-as-joe";
+function actingAsJoe(): boolean {
+  try {
+    return window.localStorage.getItem(ACT_AS_JOE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 function authHeader(): Record<string, string> {
-  return AUTH_TOKEN ? { Authorization: `Bearer ${AUTH_TOKEN}` } : {};
+  const headers: Record<string, string> = {};
+  if (AUTH_TOKEN) headers.Authorization = `Bearer ${AUTH_TOKEN}`;
+  if (actingAsJoe()) headers["X-Acting-As"] = "joe";
+  return headers;
 }
 
 async function throwIfResNotOk(res: Response) {
