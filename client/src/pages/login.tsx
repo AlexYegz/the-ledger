@@ -1,48 +1,36 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { GoogleLogin } from "@react-oauth/google";
 import { apiRequest, queryClient, setAuthToken } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
 export default function LoginPage() {
-  const [role, setRole] = useState<"principal" | "team">("principal");
-  const [identity, setIdentity] = useState<"meghan" | "alexandra">("meghan");
   const [busy, setBusy] = useState(false);
   const { setMe } = useAuth();
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGoogleCredential = async (credential: string) => {
     setBusy(true);
     try {
-      const body: any = { role };
-      if (role === "team") body.identity = identity;
-      const res = await apiRequest("POST", "/api/auth/login", body);
+      const res = await apiRequest("POST", "/api/auth/google", { credential });
       const data = await res.json();
       if (data?.token) setAuthToken(data.token);
 
-      // Mirror auth into the AuthProvider's local state (synchronous
-      // on the next render) and also into the query cache so any other
-      // consumer reading /api/auth/me sees the new role too. We then
-      // wait a tick so React has a chance to commit the state update
-      // before the route guard mounts.
       setMe({ role: data.role, identity: data.identity });
       queryClient.setQueryData(["/api/auth/me"], {
         role: data.role,
         identity: data.identity,
       });
 
-      // Yield once so the state update commits and AuthProvider
-      // re-renders before ProtectedRoute's effect runs.
       await new Promise((r) => setTimeout(r, 0));
-
-      const targetRole = data.role;
-      navigate(targetRole === "principal" ? "/answer" : "/workspace");
+      navigate(data.role === "principal" ? "/answer" : "/workspace");
     } catch (err: any) {
+      const detail = err?.message?.split(":").slice(1).join(":").trim();
       toast({
         title: "Sign-in failed",
-        description: err?.message?.split(":").slice(1).join(":").trim() || "Try again.",
+        description: detail || "This account isn't authorized for The Ledger.",
         variant: "destructive",
       });
     } finally {
@@ -52,9 +40,8 @@ export default function LoginPage() {
 
   return (
     <div className="login-stage">
-      <form
+      <div
         className="login-card"
-        onSubmit={submit}
         data-testid="login-form"
         style={{ padding: "48px 32px 40px", borderRadius: 12 }}
       >
@@ -69,61 +56,52 @@ export default function LoginPage() {
           <div className="login-accent-bar" />
         </div>
 
-        <div className="login-tabs">
-          <button
-            type="button"
-            className={role === "principal" ? "active" : ""}
-            onClick={() => setRole("principal")}
-            data-testid="tab-role-principal"
-          >
-            PRINCIPAL
-          </button>
-          <button
-            type="button"
-            className={role === "team" ? "active" : ""}
-            onClick={() => setRole("team")}
-            data-testid="tab-role-team"
-          >
-            TEAM
-          </button>
-        </div>
-
-        {role === "team" && (
-          <div className="login-field">
-            <label>SIGN IN AS</label>
-            <div className="login-identity-row">
-              <div
-                className={`login-identity-pick ${identity === "meghan" ? "active" : ""}`}
-                onClick={() => setIdentity("meghan")}
-                data-testid="pick-meghan"
-              >
-                MEGHAN
-              </div>
-              <div
-                className={`login-identity-pick ${identity === "alexandra" ? "active" : ""}`}
-                onClick={() => setIdentity("alexandra")}
-                data-testid="pick-alexandra"
-              >
-                ALEXANDRA
-              </div>
-            </div>
-          </div>
-        )}
-
-        <button
-          type="submit"
-          className="btn-primary"
-          style={{ width: "100%", justifyContent: "center", padding: "12px 18px", marginTop: 18 }}
-          disabled={busy}
-          autoFocus
-          data-testid="button-sign-in"
+        <div
+          style={{
+            marginTop: 24,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 12,
+            opacity: busy ? 0.6 : 1,
+            pointerEvents: busy ? "none" : "auto",
+          }}
         >
-          {busy ? "SIGNING IN..." : "SIGN IN"}
-        </button>
+          <GoogleLogin
+            onSuccess={(cred) => {
+              if (cred.credential) handleGoogleCredential(cred.credential);
+            }}
+            onError={() => {
+              toast({
+                title: "Google sign-in failed",
+                description: "Try again, or check that pop-ups aren't blocked.",
+                variant: "destructive",
+              });
+            }}
+            theme="filled_black"
+            size="large"
+            shape="rectangular"
+            text="signin_with"
+            useOneTap={false}
+          />
+          <div
+            style={{
+              fontSize: 11,
+              color: "var(--text-dim)",
+              fontFamily: "'Inter', sans-serif",
+              fontWeight: 500,
+              textAlign: "center",
+              maxWidth: 260,
+              lineHeight: 1.5,
+            }}
+          >
+            Sign in with your Alpha School or Trilogy Google account.
+          </div>
+        </div>
 
         <div
           style={{
-            marginTop: 18,
+            marginTop: 28,
             fontSize: 11,
             color: "var(--text-dim)",
             fontFamily: "'Inter', sans-serif",
@@ -134,7 +112,7 @@ export default function LoginPage() {
         >
           OFFICE OF JOE LIEMANDT
         </div>
-      </form>
+      </div>
     </div>
   );
 }

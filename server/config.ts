@@ -39,9 +39,10 @@ export const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY || "";
 // Model id — using claude-sonnet-4-5 mapped to current Anthropic ID.
 export const CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-4-5-20250929";
 
-export const LEDGER_PRINCIPAL_PASSWORD =
-  process.env.LEDGER_PRINCIPAL_PASSWORD || "principal";
-export const LEDGER_TEAM_PASSWORD = process.env.LEDGER_TEAM_PASSWORD || "team";
+// Google OAuth client ID for Sign in with Google. Set on Railway.
+// Same value is also passed to the front end at build time via
+// VITE_GOOGLE_CLIENT_ID — see script/build.ts.
+export const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 
 export const SESSION_SECRET =
   process.env.SESSION_SECRET || "the-ledger-dev-secret-change-me";

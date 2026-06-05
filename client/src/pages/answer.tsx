@@ -8,6 +8,7 @@ import { CATEGORY_VAR } from "@/lib/labels";
 import type { Category } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Item } from "@shared/schema";
+import { sanitizeContextHtml } from "@/lib/sanitize";
 
 type Pile = "one" | "category" | "intext" | "ts";
 const PILE_LABEL: Record<Pile, string> = {
@@ -432,7 +433,7 @@ function CardFront({
       <div className="card-subject">{item.subject}</div>
 
       <div className="card-context">
-        <span dangerouslySetInnerHTML={{ __html: item.context }} />
+        <span dangerouslySetInnerHTML={{ __html: sanitizeContextHtml(item.context) }} />
         {item.email_url ? (
           <div style={{ marginTop: 8 }}>
             <a href={item.email_url} target="_blank" rel="noreferrer" className="read-email">

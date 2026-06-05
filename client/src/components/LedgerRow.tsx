@@ -7,6 +7,7 @@ import { CategoryPill, DecisionTag, FlameIcon, OwnerAvatar, StatusTag } from "@/
 import { CATEGORY_LABEL, STATUS_LABEL, STATUS_CLASS, fmtDate, fmtNoteDate, relTime } from "@/lib/labels";
 import type { Item, Note, Activity, Category, Status, Decision } from "@shared/schema";
 import { useAuth } from "@/lib/auth";
+import { sanitizeContextHtml } from "@/lib/sanitize";
 
 const STATUSES: Status[] = ["not_started", "in_progress", "waiting", "complete", "canceled"];
 const CATEGORIES: Category[] = [
@@ -301,7 +302,7 @@ export function LedgerRow({
             <>
               <div className="subject-line">{item.subject}</div>
               <div className="context-block">
-                <span dangerouslySetInnerHTML={{ __html: item.context }} />
+                <span dangerouslySetInnerHTML={{ __html: sanitizeContextHtml(item.context) }} />
                 {item.email_url ? (
                   <div style={{ marginTop: 8 }}>
                     <a href={item.email_url} target="_blank" rel="noreferrer" className="read-email">
@@ -659,7 +660,7 @@ function ContextEditor({
         <span className="context-edit-pencil">EDIT</span>
       </div>
       <div className="context-block">
-        <span dangerouslySetInnerHTML={{ __html: context }} />
+        <span dangerouslySetInnerHTML={{ __html: sanitizeContextHtml(context) }} />
         {emailUrl ? (
           <div style={{ marginTop: 8 }}>
             <a

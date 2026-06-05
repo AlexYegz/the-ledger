@@ -2,6 +2,8 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer } from "node:http";
 import type { Server } from "node:http";
 import crypto from "node:crypto";
+import { OAuth2Client } from "google-auth-library";
+import rateLimit from "express-rate-limit";
 import { storage, sqlite, maybeSeed } from "./storage";
 import {
   insertItemSchema,
@@ -14,8 +16,12 @@ import {
   INTERNAL_DOMAINS,
   LEDGER_TO_TRACKER_TOKEN,
   MEETING_TRACKER_URL,
+  GOOGLE_CLIENT_ID,
 } from "./config";
+import { lookupAllowlist } from "./google-allowlist";
 import { z } from "zod";
+
+const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 // ============================================================
 // Token-based auth (cookies don't survive the proxy iframe).
@@ -180,29 +186,49 @@ export async function registerRoutes(
   // ============================================================
   // Auth
   // ============================================================
-  app.post("/api/auth/login", (req, res) => {
-    // Passwords are temporarily disabled. Any role / identity selection
-    // is honored. The password field is ignored if present.
-    const schema = z.object({
-      role: z.enum(["principal", "team"]),
-      password: z.string().optional(),
-      identity: z.enum(["meghan", "alexandra"]).optional(),
-    });
+  // Rate limit: at most 20 sign-in attempts per IP per 15 minutes.
+  // Generous enough for normal use, tight enough to block brute force.
+  const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "too many sign-in attempts, try again in 15 minutes" },
+  });
+
+  // Google sign-in. Front end uses Google Identity Services to obtain an
+  // ID token (JWT), then POSTs it here. We verify the JWT signature against
+  // Google's published keys, confirm the audience matches our client ID,
+  // and check the email is in our allowlist. Anything else gets 403.
+  app.post("/api/auth/google", loginLimiter, async (req, res) => {
+    const schema = z.object({ credential: z.string().min(20) });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ message: "invalid input" });
     }
-    const { role, identity } = parsed.data;
-    if (role === "principal") {
-      const token = issueToken("principal", "joe");
-      return res.json({ role: "principal", identity: "joe", token });
+    if (!GOOGLE_CLIENT_ID) {
+      return res.status(500).json({ message: "google client id not configured" });
     }
-    // team
-    if (!identity) {
-      return res.status(400).json({ message: "team identity required" });
+    try {
+      const ticket = await googleClient.verifyIdToken({
+        idToken: parsed.data.credential,
+        audience: GOOGLE_CLIENT_ID,
+      });
+      const payload = ticket.getPayload();
+      const email = payload?.email?.toLowerCase();
+      const emailVerified = payload?.email_verified;
+      if (!email || !emailVerified) {
+        return res.status(403).json({ message: "email not verified by google" });
+      }
+      const entry = lookupAllowlist(email);
+      if (!entry) {
+        return res.status(403).json({ message: "this account is not authorized" });
+      }
+      const token = issueToken(entry.role, entry.identity);
+      return res.json({ role: entry.role, identity: entry.identity, token });
+    } catch (err: any) {
+      return res.status(401).json({ message: "could not verify google sign-in" });
     }
-    const token = issueToken("team", identity);
-    return res.json({ role: "team", identity, token });
   });
 
   app.post("/api/auth/logout", (req, res) => {
@@ -555,7 +581,23 @@ export async function registerRoutes(
   // ============================================================
   // Parser endpoint (Claude)
   // ============================================================
-  app.post("/api/items/parse", requireAuth, async (req, res) => {
+  // Rate limit parse: at most 60 parses per signed-in user per hour.
+  // Each parse costs real money (Claude API) and runs Anthropic's model;
+  // this caps both runaway loops and a hostile insider abusing the endpoint.
+  const parseLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 60,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => {
+      const h = req.headers.authorization || "";
+      const m = /^Bearer\s+(.+)$/i.exec(h);
+      return m ? `t:${m[1]}` : `ip:${req.ip}`;
+    },
+    message: { message: "too many parses this hour, try again later" },
+  });
+
+  app.post("/api/items/parse", parseLimiter, requireAuth, async (req, res) => {
     const schema = z.object({
       mode: z.enum(["text", "pdf"]),
       content: z.string().min(1),
