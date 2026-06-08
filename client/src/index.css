@@ -312,52 +312,126 @@ body {
   .answer-stage.has-snooze-rail { grid-template-columns: 1fr; }
 }
 
-/* Side rail listing snoozed ("thinking") items */
+/* Side rail listing snoozed ("thinking") items.
+   Collapsed = a literal pile of mini cards you can click to expand.
+   Expanded = vertical list of full-width mini cards. */
 .snooze-rail {
   position: sticky; top: 96px;
   align-self: start;
-  border: 1px solid var(--border-soft, rgba(255,255,255,0.08));
-  background: var(--surface-2, rgba(255,255,255,0.02));
-  border-radius: 6px;
-  padding: 14px 12px;
-  max-height: calc(100vh - 120px);
-  overflow-y: auto;
+  display: flex; flex-direction: column;
+  gap: 12px;
 }
+
 .snooze-rail-head {
+  all: unset;
+  cursor: pointer;
   font-family: 'Lemon Milk', sans-serif; font-size: 10px; letter-spacing: 0.18em;
   color: var(--text-dim);
-  margin-bottom: 10px;
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 4px;
 }
-.snooze-rail-count { color: var(--neon); }
-.snooze-rail-empty {
-  font-size: 12px; color: var(--text-dim); padding: 6px 0;
+.snooze-rail-head:hover { color: var(--text-hi); }
+.snooze-rail-head-label {
+  flex: 1; display: inline-flex; align-items: center; gap: 6px;
 }
-.snooze-rail-item {
+.snooze-rail-icon { font-size: 14px; color: var(--text-mid); }
+.snooze-rail-count {
+  font-family: 'Fraunces', serif;
+  font-size: 16px; letter-spacing: 0;
+  color: var(--neon);
+  font-weight: 600;
+}
+.snooze-rail-toggle {
+  width: 18px; height: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border-soft, rgba(255,255,255,0.18));
+  border-radius: 50%;
+  font-size: 12px; line-height: 1;
+  color: var(--text-mid);
+}
+.snooze-rail-head:hover .snooze-rail-toggle {
+  color: var(--text-hi); border-color: var(--text-mid);
+}
+
+/* Collapsed pile: 3 stacked cards with peek + rotation */
+.snooze-pile {
+  position: relative;
+  height: 168px;
+  margin-top: 6px;
+  margin-left: 8px; /* room for cards rotated left */
+  cursor: pointer;
+}
+.snooze-pile-more {
+  position: absolute; bottom: -2px; left: 0;
+  font-family: 'Inter', sans-serif; font-size: 10px; letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+.snooze-pile-hint {
+  position: absolute; bottom: -2px; right: 0;
+  font-family: 'Lemon Milk', sans-serif; font-size: 8px; letter-spacing: 0.18em;
+  color: var(--text-dim);
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+.snooze-pile:hover .snooze-pile-hint { opacity: 1; }
+
+/* Card visual — mimics the main answer card but smaller */
+.snooze-card {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  background: var(--surface, rgba(255,255,255,0.96));
+  color: var(--ink, #1a1a1a);
+  border: 1px solid var(--border-soft, rgba(0,0,0,0.08));
+  border-radius: 6px;
+  padding: 10px 12px 12px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
   display: flex; flex-direction: column; gap: 4px;
-  padding: 10px 8px; border-radius: 4px;
-  cursor: default;
-  border: 1px solid transparent;
+  transition: transform 160ms ease, box-shadow 160ms ease;
 }
-.snooze-rail-item + .snooze-rail-item { border-top: 1px solid var(--border-soft, rgba(255,255,255,0.06)); border-radius: 0; }
-.snooze-rail-item:hover { background: rgba(255,255,255,0.03); }
-.snooze-rail-from { font-size: 12px; font-weight: 600; color: var(--text-hi); }
-.snooze-rail-subject {
+.snooze-pile:hover .snooze-card:nth-child(1) {
+  transform: translate(0, -2px) rotate(0) !important;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+}
+.snooze-card-cat {
+  font-family: 'Lemon Milk', sans-serif; font-size: 8px; letter-spacing: 0.16em;
+  color: var(--text-dim);
+}
+.snooze-card-from {
+  font-family: 'Fraunces', serif;
+  font-size: 13px; font-weight: 600; color: var(--ink, #1a1a1a);
+}
+.snooze-card-subject {
   font-size: 11px; color: var(--text-mid);
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  line-height: 1.3;
 }
-.snooze-rail-meta {
+.snooze-card-age {
+  font-family: 'Lemon Milk', sans-serif; font-size: 8px; letter-spacing: 0.16em;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+/* Expanded list: full-width mini cards stacked vertically */
+.snooze-rail-list {
+  display: flex; flex-direction: column; gap: 10px;
+  max-height: calc(100vh - 180px);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.snooze-card-full {
+  position: relative; /* override absolute from pile cards */
+}
+.snooze-card-foot {
   display: flex; align-items: center; justify-content: space-between;
-  font-family: 'Inter', sans-serif; font-size: 10px; letter-spacing: 0.08em;
-  color: var(--text-dim); margin-top: 4px;
+  margin-top: 6px; gap: 8px;
 }
 .snooze-rail-unsnooze {
-  background: transparent; border: 1px solid var(--border-soft, rgba(255,255,255,0.16));
+  background: transparent; border: 1px solid var(--border-soft, rgba(0,0,0,0.18));
   color: var(--text-mid);
   font-family: 'Lemon Milk', sans-serif; font-size: 9px; letter-spacing: 0.14em;
-  padding: 3px 6px; border-radius: 3px; cursor: pointer;
+  padding: 4px 8px; border-radius: 3px; cursor: pointer;
 }
-.snooze-rail-unsnooze:hover { color: var(--text-hi); border-color: var(--text-mid); }
+.snooze-rail-unsnooze:hover { color: var(--ink, #1a1a1a); border-color: var(--ink, #1a1a1a); }
 
 /* Snoozed badge in row pills + custom-action chips reuse decision colors */
 .snooze-badge {

@@ -96,10 +96,11 @@ export default function AnswerPage() {
 
   const allItems = itemsQ.data || [];
 
-  // Pending = no decision yet. Order: base order, but with skipped IDs moved to the back
-  // in the order they were skipped.
+  // Pending = no decision yet AND not snoozed. Snoozed items live in the
+  // side rail so they don't clutter Joe's deck. Order: base order, but with
+  // skipped IDs moved to the back in the order they were skipped.
   const pending = useMemo(() => {
-    const base = allItems.filter((i) => !i.decision);
+    const base = allItems.filter((i) => !i.decision && !i.snoozed_at);
     const skipSet = new Set(skipOrder);
     const head = base.filter((i) => !skipSet.has(i.id));
     const tail = skipOrder
@@ -382,36 +383,110 @@ function SnoozeRail({
   items: Item[];
   onUnsnooze: (id: string) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  if (items.length === 0) return null;
+
+  // Newest-snoozed shows on top of the pile (visually closer to the user).
+  // Sorted oldest -> newest by parent, so reverse here.
+  const pileOrder = [...items].reverse();
+  const visiblePeek = pileOrder.slice(0, 3); // up to 3 cards visible in the pile
+
   return (
-    <aside className="snooze-rail" data-testid="snooze-rail" aria-label="Snoozed items">
-      <div className="snooze-rail-head">
-        <span>STILL THINKING</span>
+    <aside
+      className={`snooze-rail${expanded ? " is-expanded" : " is-collapsed"}`}
+      data-testid="snooze-rail"
+      aria-label="Snoozed items"
+    >
+      <button
+        type="button"
+        className="snooze-rail-head"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        data-testid="button-toggle-snooze-rail"
+      >
+        <span className="snooze-rail-head-label">
+          <span className="snooze-rail-icon" aria-hidden="true">⧖</span>
+          STILL THINKING
+        </span>
         <span className="snooze-rail-count">{items.length}</span>
-      </div>
-      {items.length === 0 ? (
-        <div className="snooze-rail-empty">Nothing on the back burner.</div>
-      ) : (
-        items.map((item) => (
-          <div
-            key={item.id}
-            className="snooze-rail-item"
-            data-testid={`snooze-rail-item-${item.id}`}
-          >
-            <div className="snooze-rail-from">{item.sender_name}</div>
-            <div className="snooze-rail-subject">{item.subject}</div>
-            <div className="snooze-rail-meta">
-              <span>{snoozeAgeLabel(item.snoozed_at).toUpperCase()}</span>
-              <button
-                className="snooze-rail-unsnooze"
-                onClick={() => onUnsnooze(item.id)}
-                title="Bring back to the queue"
-                data-testid={`button-unsnooze-${item.id}`}
-              >
-                BRING BACK
-              </button>
+        <span className="snooze-rail-toggle" aria-hidden="true">
+          {expanded ? "–" : "+"}
+        </span>
+      </button>
+
+      {!expanded ? (
+        <div
+          className="snooze-pile"
+          onClick={() => setExpanded(true)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setExpanded(true);
+            }
+          }}
+          aria-label="Expand snoozed cards"
+          data-testid="snooze-pile"
+        >
+          {visiblePeek.map((item, idx) => (
+            <div
+              key={item.id}
+              className="snooze-card"
+              style={{
+                // Stack layout: top card flush, others peek out behind.
+                zIndex: visiblePeek.length - idx,
+                transform: `translate(${idx * -6}px, ${idx * 8}px) rotate(${idx * -1.4}deg)`,
+                opacity: 1 - idx * 0.12,
+              }}
+              data-testid={`snooze-pile-card-${item.id}`}
+            >
+              <div className="snooze-card-cat">
+                {item.category.replace(/_/g, " ").toUpperCase()}
+              </div>
+              <div className="snooze-card-from">{item.sender_name}</div>
+              <div className="snooze-card-subject">{item.subject}</div>
+              <div className="snooze-card-age">
+                {snoozeAgeLabel(item.snoozed_at).toUpperCase()}
+              </div>
             </div>
-          </div>
-        ))
+          ))}
+          {items.length > visiblePeek.length && (
+            <div className="snooze-pile-more">
+              +{items.length - visiblePeek.length} more behind
+            </div>
+          )}
+          <div className="snooze-pile-hint">CLICK TO EXPAND</div>
+        </div>
+      ) : (
+        <div className="snooze-rail-list">
+          {pileOrder.map((item) => (
+            <div
+              key={item.id}
+              className="snooze-card snooze-card-full"
+              data-testid={`snooze-rail-item-${item.id}`}
+            >
+              <div className="snooze-card-cat">
+                {item.category.replace(/_/g, " ").toUpperCase()}
+              </div>
+              <div className="snooze-card-from">{item.sender_name}</div>
+              <div className="snooze-card-subject">{item.subject}</div>
+              <div className="snooze-card-foot">
+                <span className="snooze-card-age">
+                  {snoozeAgeLabel(item.snoozed_at).toUpperCase()}
+                </span>
+                <button
+                  className="snooze-rail-unsnooze"
+                  onClick={() => onUnsnooze(item.id)}
+                  title="Bring back to the queue"
+                  data-testid={`button-unsnooze-${item.id}`}
+                >
+                  BRING BACK
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </aside>
   );
