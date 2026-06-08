@@ -866,19 +866,25 @@ function CustomActionsEditor({
             <span
               key={a.id}
               className={`decision-tag ${
-                a.decision === "team_to_action"
-                  ? "action"
-                  : a.decision === "team_to_decline"
-                    ? "decline"
-                    : a.decision === "principal_to_respond"
-                      ? "respond"
-                      : "delegate"
+                a.is_snooze
+                  ? "snooze-chip"
+                  : a.decision === "team_to_action"
+                    ? "action"
+                    : a.decision === "team_to_decline"
+                      ? "decline"
+                      : a.decision === "principal_to_respond"
+                        ? "respond"
+                        : "delegate"
               }`}
               style={{ opacity: 0.85 }}
-              title={`Routes to ${a.decision.replace(/_/g, " ")}${a.is_snooze ? " (snooze)" : ""}`}
+              title={
+                a.is_snooze
+                  ? "Parks in the snooze pile until Joe comes back to it"
+                  : `Routes to ${a.decision.replace(/_/g, " ")}`
+              }
             >
+              {a.is_snooze ? "⧖ " : ""}
               {a.label.toUpperCase()}
-              {a.is_snooze ? " · \u25CB" : ""}
             </span>
           ))}
         </div>
@@ -896,53 +902,55 @@ function CustomActionsEditor({
               No custom buttons yet — add 2 to 4.
             </div>
           )}
-          {draft.map((row, i) => (
-            <div className="custom-actions-row" key={i}>
-              <input
-                type="text"
-                placeholder="e.g. Schedule with Emma"
-                value={row.label}
-                maxLength={60}
-                onChange={(e) => updateRow(i, { label: e.target.value })}
-                data-testid={`input-custom-action-label-${itemId}-${i}`}
-              />
-              <select
-                value={row.decision}
-                onChange={(e) =>
-                  updateRow(i, { decision: e.target.value as Decision })
-                }
-                data-testid={`select-custom-action-decision-${itemId}-${i}`}
-              >
-                <option value="team_to_action">Team to action</option>
-                <option value="team_to_decline">Team to decline</option>
-                <option value="principal_to_respond">Joe to respond</option>
-                <option value="delegate">Delegate</option>
-              </select>
-              <label className="snooze-toggle">
+          {draft.map((row, i) => {
+            // UI-only sentinel value "snooze" in the dropdown maps to
+            // { decision: "principal_to_respond", is_snooze: true } so the
+            // user has a single 5-option picker instead of dropdown + checkbox.
+            const selectValue = row.is_snooze ? "snooze" : row.decision;
+            return (
+              <div className="custom-actions-row" key={i}>
                 <input
-                  type="checkbox"
-                  checked={!!row.is_snooze}
-                  onChange={(e) =>
-                    updateRow(i, {
-                      is_snooze: e.target.checked,
-                      decision: e.target.checked
-                        ? "principal_to_respond"
-                        : row.decision,
-                    })
-                  }
-                  data-testid={`input-custom-action-snooze-${itemId}-${i}`}
+                  type="text"
+                  placeholder="e.g. Schedule with Emma"
+                  value={row.label}
+                  maxLength={60}
+                  onChange={(e) => updateRow(i, { label: e.target.value })}
+                  data-testid={`input-custom-action-label-${itemId}-${i}`}
                 />
-                snooze
-              </label>
-              <button
-                className="btn-remove"
-                onClick={() => removeRow(i)}
-                data-testid={`button-remove-custom-action-${itemId}-${i}`}
-              >
-                ×
-              </button>
-            </div>
-          ))}
+                <select
+                  value={selectValue}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "snooze") {
+                      updateRow(i, {
+                        decision: "principal_to_respond",
+                        is_snooze: true,
+                      });
+                    } else {
+                      updateRow(i, {
+                        decision: v as Decision,
+                        is_snooze: false,
+                      });
+                    }
+                  }}
+                  data-testid={`select-custom-action-decision-${itemId}-${i}`}
+                >
+                  <option value="team_to_action">Team to action</option>
+                  <option value="team_to_decline">Team to decline</option>
+                  <option value="principal_to_respond">Joe to respond</option>
+                  <option value="delegate">Delegate</option>
+                  <option value="snooze">Joe to think about it</option>
+                </select>
+                <button
+                  className="btn-remove"
+                  onClick={() => removeRow(i)}
+                  data-testid={`button-remove-custom-action-${itemId}-${i}`}
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })}
           <div className="custom-actions-actions">
             {draft.length < 4 && (
               <button

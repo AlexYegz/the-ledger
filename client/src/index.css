@@ -373,6 +373,13 @@ body {
 /* Custom action button: snooze variant gets a dimmer outline */
 .btn-decide.is-snooze { opacity: 0.92; }
 
+/* Snooze preview chip in the editor: dimmer, no decision color */
+.decision-tag.snooze-chip {
+  background: transparent;
+  color: var(--text-mid);
+  border: 1px dashed var(--border-soft, rgba(255,255,255,0.18));
+}
+
 /* Decision tag with a custom action label: stack custom label over route label */
 .decision-tag.has-custom-label {
   display: inline-flex;
@@ -410,7 +417,7 @@ body {
   margin-bottom: 8px;
 }
 .custom-actions-row {
-  display: grid; grid-template-columns: 1fr 160px auto auto; gap: 6px;
+  display: grid; grid-template-columns: 1fr 200px auto; gap: 6px;
   margin-bottom: 6px; align-items: center;
 }
 .custom-actions-row input[type="text"] {
@@ -420,10 +427,6 @@ body {
 .custom-actions-row select {
   background: rgba(255,255,255,0.04); border: 1px solid var(--border-soft, rgba(255,255,255,0.1));
   color: var(--text-hi); padding: 6px 8px; border-radius: 3px; font-size: 12px;
-}
-.custom-actions-row .snooze-toggle {
-  font-size: 10px; color: var(--text-dim);
-  display: flex; align-items: center; gap: 4px;
 }
 .custom-actions-row .btn-remove {
   background: transparent; border: 1px solid var(--border-soft, rgba(255,255,255,0.12));
