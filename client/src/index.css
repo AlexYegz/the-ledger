@@ -1717,7 +1717,7 @@ body {
 .hero-banner {
   position: relative;
   width: 100%;
-  height: 340px;
+  height: 180px;
   overflow: hidden;
   background-color: var(--bg-page);
 }
@@ -1754,7 +1754,7 @@ body {
   align-items: center;
   justify-content: flex-end;
   text-align: center;
-  padding: 0 32px 26px;
+  padding: 0 32px 18px;
   z-index: 1;
 }
 .hero-eyebrow {
@@ -1764,17 +1764,17 @@ body {
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--text-dim);
-  margin-bottom: 14px;
+  margin-bottom: 8px;
 }
 .hero-title {
   font-family: 'Fraunces', serif;
   font-variation-settings: "opsz" 144, "SOFT" 60;
   font-weight: 400;
-  font-size: 58px;
+  font-size: 48px;
   line-height: 1;
   letter-spacing: -0.025em;
   color: var(--text);
-  margin: 0 0 12px;
+  margin: 0 0 10px;
 }
 .hero-sub {
   font-family: 'Inter', sans-serif;
@@ -1817,9 +1817,14 @@ body {
   border-radius: 50%;
 }
 
-@media (max-width: 820px) {
-  .hero-banner { height: 260px; }
-  .hero-title { font-size: 44px; }
+@media (max-width: 1024px) {
+  .hero-banner { height: 160px; }
+  .hero-title { font-size: 40px; }
+}
+@media (max-width: 720px) {
+  .hero-banner { height: 130px; }
+  .hero-title { font-size: 32px; }
+  .hero-sub { font-size: 10.5px; letter-spacing: 0.28em; }
 }
 
 /* ====== Login card Backbone style ====== */
