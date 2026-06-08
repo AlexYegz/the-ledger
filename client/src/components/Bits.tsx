@@ -47,14 +47,29 @@ export function CategoryPill({ category }: { category: string }) {
 export function DecisionTag({
   decision,
   delegateTo,
+  customLabel,
 }: {
   decision: string | null | undefined;
   delegateTo: string | null | undefined;
+  customLabel?: string | null;
 }) {
   const cls = decision ? DECISION_CLASS[decision as Decision] : "pending";
+  const routeLabel = decisionTagLabel(decision, delegateTo);
+  if (customLabel && decision) {
+    return (
+      <span
+        className={`decision-tag ${cls || "pending"} has-custom-label`}
+        data-testid={`decision-${decision}`}
+        title={routeLabel}
+      >
+        <span className="decision-custom">{customLabel.toUpperCase()}</span>
+        <span className="decision-route">{routeLabel}</span>
+      </span>
+    );
+  }
   return (
     <span className={`decision-tag ${cls || "pending"}`} data-testid={`decision-${decision || "pending"}`}>
-      {decisionTagLabel(decision, delegateTo)}
+      {routeLabel}
     </span>
   );
 }

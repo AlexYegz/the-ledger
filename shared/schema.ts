@@ -34,7 +34,24 @@ export const items = sqliteTable("items", {
   principal_note: text("principal_note"),
   archived_at: integer("archived_at"),
   deleted_at: integer("deleted_at"),
+  // JSON: array of { id: string, label: string, decision: Decision } (2-4 entries)
+  // When null/empty, Joe sees the generic 4 buttons (back-compat).
+  custom_actions: text("custom_actions"),
+  // Set when Joe clicks a snooze-style button (principal_to_respond +
+  // is_snooze flag). Cleared when un-snoozed or when a non-snooze
+  // decision is made.
+  snoozed_at: integer("snoozed_at"),
 });
+
+// Custom action shape (stored as JSON in items.custom_actions).
+export interface CustomAction {
+  id: string;
+  label: string;
+  decision: Decision;
+  // Optional: when true, clicking this in the Answer view snoozes the
+  // item instead of finalizing the decision. Routes to principal_to_respond.
+  is_snooze?: boolean;
+}
 
 export const insertItemSchema = createInsertSchema(items).omit({
   id: true,
@@ -42,6 +59,7 @@ export const insertItemSchema = createInsertSchema(items).omit({
   decided_at: true,
   last_touched_at: true,
   sent_to_meeting_tracker_at: true,
+  snoozed_at: true,
 });
 
 export type Item = typeof items.$inferSelect;

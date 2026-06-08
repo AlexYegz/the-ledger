@@ -46,6 +46,7 @@ function WorkspacePageInner({ readOnly = false }: { readOnly?: boolean }) {
   const [filterOwner, setFilterOwner] = useState<string | "">("");
   const [filterIntExt, setFilterIntExt] = useState<"" | "internal" | "external">("");
   const [filterTS, setFilterTS] = useState<"" | "ts">("");
+  const [filterSnoozed, setFilterSnoozed] = useState<"" | "snoozed">("");
   const [parserOpen, setParserOpen] = useState(false);
 
   // Custom queryFn because the default joins queryKey parts into the URL path,
@@ -99,6 +100,7 @@ function WorkspacePageInner({ readOnly = false }: { readOnly?: boolean }) {
       );
     }
     if (filterTS) arr = arr.filter((i) => i.is_time_sensitive);
+    if (filterSnoozed) arr = arr.filter((i) => i.snoozed_at && !i.decision);
 
     const cmp = (a: Item, b: Item) => {
       let r = 0;
@@ -127,7 +129,7 @@ function WorkspacePageInner({ readOnly = false }: { readOnly?: boolean }) {
       return dir === "desc" ? -r : r;
     };
     return [...arr].sort(cmp);
-  }, [itemsQ.data, search, sort, dir, filterCat, filterDec, filterStatus, filterOwner, filterIntExt, filterTS, cfgQ.data]);
+  }, [itemsQ.data, search, sort, dir, filterCat, filterDec, filterStatus, filterOwner, filterIntExt, filterTS, filterSnoozed, cfgQ.data]);
 
   const exportCsv = () => {
     const rows = [
@@ -246,7 +248,7 @@ function WorkspacePageInner({ readOnly = false }: { readOnly?: boolean }) {
             <Popover>
               <PopoverTrigger asChild>
                 <div className="sort-pill" data-testid="button-filter">
-                  FILTER {anyFilter(filterCat, filterDec, filterStatus, filterOwner, filterIntExt, filterTS) ? <span style={{ color: "var(--neon)" }}>·</span> : null}
+                  FILTER {anyFilter(filterCat, filterDec, filterStatus, filterOwner, filterIntExt, filterTS, filterSnoozed) ? <span style={{ color: "var(--neon)" }}>·</span> : null}
                   <span className="arrow">▾</span>
                 </div>
               </PopoverTrigger>
@@ -309,7 +311,11 @@ function WorkspacePageInner({ readOnly = false }: { readOnly?: boolean }) {
                     {filterTS ? "✓ " : ""}TIME-SENSITIVE ONLY
                   </div>
 
-                  <div className="opt" style={{ color: "var(--text-dim)", marginTop: 6 }} onClick={() => { setFilterCat(""); setFilterDec(""); setFilterStatus(""); setFilterOwner(""); setFilterIntExt(""); setFilterTS(""); }} data-testid="filter-clear">
+                  <div className="opt" onClick={() => setFilterSnoozed(filterSnoozed ? "" : "snoozed")} data-testid="filter-snoozed" style={{ marginTop: 4 }}>
+                    {filterSnoozed ? "✓ " : ""}SNOOZED ONLY
+                  </div>
+
+                  <div className="opt" style={{ color: "var(--text-dim)", marginTop: 6 }} onClick={() => { setFilterCat(""); setFilterDec(""); setFilterStatus(""); setFilterOwner(""); setFilterIntExt(""); setFilterTS(""); setFilterSnoozed(""); }} data-testid="filter-clear">
                     CLEAR ALL
                   </div>
                 </div>

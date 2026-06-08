@@ -9,6 +9,7 @@ import type { Category } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Item } from "@shared/schema";
 import { sanitizeContextHtml } from "@/lib/sanitize";
+import { parseCustomActions, decisionClass, snoozeAgeLabel } from "@/lib/customActions";
 
 type Pile = "one" | "category" | "intext" | "ts";
 const PILE_LABEL: Record<Pile, string> = {
@@ -75,6 +76,24 @@ export default function AnswerPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/items"] }),
   });
 
+  const snoozeMut = useMutation({
+    mutationFn: async ({ id, label }: { id: string; label?: string }) => {
+      const r = await apiRequest("POST", `/api/items/${id}/snooze`, {
+        action_label: label || null,
+      });
+      return r.json();
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/items"] }),
+  });
+
+  const unsnoozeMut = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await apiRequest("POST", `/api/items/${id}/unsnooze`);
+      return r.json();
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/items"] }),
+  });
+
   const allItems = itemsQ.data || [];
 
   // Pending = no decision yet. Order: base order, but with skipped IDs moved to the back
@@ -130,7 +149,25 @@ export default function AnswerPage() {
     });
   }, []);
 
-  const handleDecision = (item: Item, decision: string, note?: string) => {
+  const handleDecision = (
+    item: Item,
+    decision: string,
+    note?: string,
+    label?: string,
+    isSnooze?: boolean,
+  ) => {
+    // Snooze short-circuits: hits the snooze endpoint, no decision is set.
+    if (isSnooze) {
+      snoozeMut.mutate({ id: item.id, label });
+      // Persist any note Joe wrote so the team sees his thinking.
+      if (note && note.trim() && note.trim() !== (item.principal_note || "")) {
+        patchMut.mutate({
+          id: item.id,
+          patch: { principal_note: note.trim() },
+        });
+      }
+      return;
+    }
     if (decision === "delegate") {
       setDelegating(item.id);
       setDelegateName("");
@@ -138,6 +175,7 @@ export default function AnswerPage() {
     }
     const patch: any = { decision, delegate_to: null };
     if (note && note.trim()) patch.principal_note = note.trim();
+    if (label) patch.action_label = label;
     patchMut.mutate({ id: item.id, patch });
     recordAnswered(item.id);
   };
@@ -179,6 +217,23 @@ export default function AnswerPage() {
   const totalToday = pending.length + decidedToday;
   const progressPct = totalToday > 0 ? (decidedToday / totalToday) * 100 : 0;
 
+  // Snoozed pile: items Joe has put on "think about it." They still
+  // count as awaiting Joe (no decision) but live in the side rail.
+  const snoozed = useMemo(
+    () =>
+      allItems
+        .filter(
+          (i) =>
+            !!i.snoozed_at &&
+            !i.decision &&
+            !i.archived_at &&
+            !i.deleted_at,
+        )
+        .sort((a, b) => (a.snoozed_at || 0) - (b.snoozed_at || 0)),
+    [allItems],
+  );
+  const showRail = snoozed.length > 0;
+
   return (
     <>
       <TopBar />
@@ -187,7 +242,7 @@ export default function AnswerPage() {
         subtitle="Click through the cards to clear the queue"
       />
 
-      <div className="answer-stage">
+      <div className={`answer-stage${showRail ? " has-snooze-rail" : ""}`}>
         <div>
           <div className="queue-meta queue-meta-row" data-testid="queue-meta">
             <span className="queue-meta-text">
@@ -309,8 +364,56 @@ export default function AnswerPage() {
             </div>
           )}
         </div>
+        {showRail && (
+          <SnoozeRail
+            items={snoozed}
+            onUnsnooze={(id) => unsnoozeMut.mutate(id)}
+          />
+        )}
       </div>
     </>
+  );
+}
+
+function SnoozeRail({
+  items,
+  onUnsnooze,
+}: {
+  items: Item[];
+  onUnsnooze: (id: string) => void;
+}) {
+  return (
+    <aside className="snooze-rail" data-testid="snooze-rail" aria-label="Snoozed items">
+      <div className="snooze-rail-head">
+        <span>STILL THINKING</span>
+        <span className="snooze-rail-count">{items.length}</span>
+      </div>
+      {items.length === 0 ? (
+        <div className="snooze-rail-empty">Nothing on the back burner.</div>
+      ) : (
+        items.map((item) => (
+          <div
+            key={item.id}
+            className="snooze-rail-item"
+            data-testid={`snooze-rail-item-${item.id}`}
+          >
+            <div className="snooze-rail-from">{item.sender_name}</div>
+            <div className="snooze-rail-subject">{item.subject}</div>
+            <div className="snooze-rail-meta">
+              <span>{snoozeAgeLabel(item.snoozed_at).toUpperCase()}</span>
+              <button
+                className="snooze-rail-unsnooze"
+                onClick={() => onUnsnooze(item.id)}
+                title="Bring back to the queue"
+                data-testid={`button-unsnooze-${item.id}`}
+              >
+                BRING BACK
+              </button>
+            </div>
+          </div>
+        ))
+      )}
+    </aside>
   );
 }
 
@@ -328,7 +431,7 @@ function CardStack({
   total,
 }: {
   items: Item[];
-  onDecide: (item: Item, decision: string, note?: string) => void;
+  onDecide: (item: Item, decision: string, note?: string, label?: string, isSnooze?: boolean) => void;
   onSkip: (item: Item) => void;
   delegating: string | null;
   delegateName: string;
@@ -398,7 +501,7 @@ function CardFront({
 }: {
   item: Item;
   position: string;
-  onDecide: (item: Item, decision: string, note?: string) => void;
+  onDecide: (item: Item, decision: string, note?: string, label?: string, isSnooze?: boolean) => void;
   onSkip: (item: Item) => void;
   delegating: boolean;
   delegateName: string;
@@ -461,40 +564,65 @@ function CardFront({
         />
       </div>
 
-      <div className="decision-row">
-        <button
-          className="btn-decide action"
-          onClick={() => onDecide(item, "team_to_action", note)}
-          data-testid={`decide-action-${item.id}`}
-        >
-          <span className="btn-decide-label">TEAM TO ACTION</span>
-          <span className="arrow">→</span>
-        </button>
-        <button
-          className="btn-decide decline"
-          onClick={() => onDecide(item, "team_to_decline", note)}
-          data-testid={`decide-decline-${item.id}`}
-        >
-          <span className="btn-decide-label">TEAM TO DECLINE</span>
-          <span className="arrow">→</span>
-        </button>
-        <button
-          className="btn-decide respond"
-          onClick={() => onDecide(item, "principal_to_respond", note)}
-          data-testid={`decide-respond-${item.id}`}
-        >
-          <span className="btn-decide-label">I'LL RESPOND</span>
-          <span className="arrow">→</span>
-        </button>
-        <button
-          className="btn-decide delegate"
-          onClick={() => onDecide(item, "delegate", note)}
-          data-testid={`decide-delegate-${item.id}`}
-        >
-          <span className="btn-decide-label">DELEGATE TO…</span>
-          <span className="arrow">→</span>
-        </button>
-      </div>
+      {(() => {
+        const customActions = parseCustomActions(item.custom_actions);
+        if (customActions.length >= 2) {
+          return (
+            <div className="decision-row decision-row-custom">
+              {customActions.map((a) => {
+                const cls = decisionClass(a.decision);
+                return (
+                  <button
+                    key={a.id}
+                    className={`btn-decide ${cls}${a.is_snooze ? " is-snooze" : ""}`}
+                    onClick={() => onDecide(item, a.decision, note, a.label, a.is_snooze)}
+                    data-testid={`decide-custom-${a.id}-${item.id}`}
+                  >
+                    <span className="btn-decide-label">{a.label.toUpperCase()}</span>
+                    <span className="arrow">{a.is_snooze ? "…" : "→"}</span>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        }
+        return (
+          <div className="decision-row">
+            <button
+              className="btn-decide action"
+              onClick={() => onDecide(item, "team_to_action", note)}
+              data-testid={`decide-action-${item.id}`}
+            >
+              <span className="btn-decide-label">TEAM TO ACTION</span>
+              <span className="arrow">→</span>
+            </button>
+            <button
+              className="btn-decide decline"
+              onClick={() => onDecide(item, "team_to_decline", note)}
+              data-testid={`decide-decline-${item.id}`}
+            >
+              <span className="btn-decide-label">TEAM TO DECLINE</span>
+              <span className="arrow">→</span>
+            </button>
+            <button
+              className="btn-decide respond"
+              onClick={() => onDecide(item, "principal_to_respond", note)}
+              data-testid={`decide-respond-${item.id}`}
+            >
+              <span className="btn-decide-label">I'LL RESPOND</span>
+              <span className="arrow">→</span>
+            </button>
+            <button
+              className="btn-decide delegate"
+              onClick={() => onDecide(item, "delegate", note)}
+              data-testid={`decide-delegate-${item.id}`}
+            >
+              <span className="btn-decide-label">DELEGATE TO…</span>
+              <span className="arrow">→</span>
+            </button>
+          </div>
+        );
+      })()}
 
       {delegating && (
         <div className="delegate-input-row">

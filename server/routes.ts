@@ -96,14 +96,37 @@ Writing rules for the "context" field:
     "team_to_decline": "Brief lowercase fragment for the decline path, e.g. 'graceful pass, leave door open'",
     "principal_to_respond": "Brief lowercase fragment for Joe handling it himself",
     "delegate": "Brief lowercase fragment for delegation, e.g. 'forward to chief of staff'"
-  }
+  },
+  "suggested_actions": [
+    { "label": "Specific action button text", "decision": "team_to_action | team_to_decline | principal_to_respond | delegate", "is_snooze": false }
+  ]
 }
+
+Rules for "suggested_actions":
+- Return 2 to 4 buttons that are the most likely next steps for THIS specific email. These are the buttons Joe will see and tap.
+- Each label is a short, specific imperative phrase (2-5 words). Use the actual person/topic from the email. Examples: "Schedule with Arpan", "Decline politely", "Ask for MAP scores first", "Pass to Meghan".
+- BAD labels (too generic): "Team to action", "Yes", "Reply", "Take meeting".
+- Always include at least one decline-style option mapped to team_to_decline.
+- Unless the item is time-sensitive, ALWAYS include exactly one snooze option as the LAST entry: { "label": "I'll think about it", "decision": "principal_to_respond", "is_snooze": true }.
+- Map each label to the correct underlying decision:
+  - team_to_action: team will execute (book the meeting, send the doc, etc.)
+  - team_to_decline: team will politely decline
+  - principal_to_respond: Joe handles personally (writes the reply, makes the call) — also used for snooze with is_snooze: true
+  - delegate: forward to a specific named person (Meghan, etc.)
 
 Example of correct context tone:
   "<b>Arun Rao</b> wants to introduce you to <b>Emma Brunskill</b>, a Stanford CS professor researching ML/RL in education. Arun suggests meeting in Palo Alto this week to discuss applying RCT methodology to Alpha School. <b>Want to meet with Emma?</b>"
 
 Example of WRONG tone (do not do this):
-  "Arun Rao is introducing Joe to Emma Brunskill... Does Joe want to meet?"`;
+  "Arun Rao is introducing Joe to Emma Brunskill... Does Joe want to meet?"
+
+Example of good suggested_actions for the Arun/Emma intro above:
+  [
+    { "label": "Schedule with Emma", "decision": "team_to_action", "is_snooze": false },
+    { "label": "Ask Arun for context first", "decision": "principal_to_respond", "is_snooze": false },
+    { "label": "Politely pass", "decision": "team_to_decline", "is_snooze": false },
+    { "label": "I'll think about it", "decision": "principal_to_respond", "is_snooze": true }
+  ]`;
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {
   const sess = readSession(req);
@@ -438,6 +461,13 @@ export async function registerRoutes(
     const existing = storage.getItem((req.params.id as string));
     if (!existing) return res.status(404).json({ message: "not found" });
     const patch: any = { ...req.body };
+    // Optional metadata about WHICH button was clicked (the visible label).
+    // We strip it from the persisted patch and attach to decision_made activity.
+    const actionLabel: string | null =
+      typeof patch.action_label === "string" && patch.action_label.trim()
+        ? patch.action_label.trim().slice(0, 80)
+        : null;
+    delete patch.action_label;
     const actor = actorForReq(req);
     const now = Date.now();
 
@@ -452,6 +482,59 @@ export async function registerRoutes(
       decisionChanging &&
       (patch.decision === null || patch.decision === "") &&
       existing.decision !== null;
+
+    // custom_actions: accept either a CustomAction[] array, a JSON string,
+    // or null/empty to clear. Normalize to either a JSON string of a
+    // 2-4 entry array, or null. Reject malformed input.
+    let customActionsChanging = false;
+    let customActionsNewVal: string | null | undefined = undefined;
+    if (patch.custom_actions !== undefined) {
+      const incoming = patch.custom_actions;
+      if (incoming === null || incoming === "") {
+        customActionsNewVal = null;
+      } else {
+        let arr: any;
+        if (typeof incoming === "string") {
+          try {
+            arr = JSON.parse(incoming);
+          } catch {
+            return res.status(400).json({ message: "custom_actions: invalid JSON" });
+          }
+        } else {
+          arr = incoming;
+        }
+        if (!Array.isArray(arr)) {
+          return res.status(400).json({ message: "custom_actions must be an array" });
+        }
+        const validDecisions = new Set([
+          "team_to_action",
+          "team_to_decline",
+          "principal_to_respond",
+          "delegate",
+        ]);
+        const cleaned = arr
+          .map((a: any, i: number) => {
+            if (!a || typeof a !== "object") return null;
+            const label = String(a.label || "").trim().slice(0, 60);
+            const decision = String(a.decision || "").trim();
+            if (!label || !validDecisions.has(decision)) return null;
+            return {
+              id: String(a.id || `act_${i + 1}`),
+              label,
+              decision,
+              is_snooze: Boolean(a.is_snooze),
+            };
+          })
+          .filter((a: any) => a !== null)
+          .slice(0, 4);
+        if (cleaned.length > 0 && cleaned.length < 2) {
+          return res.status(400).json({ message: "custom_actions: need 0, or 2-4 entries" });
+        }
+        customActionsNewVal = cleaned.length === 0 ? null : JSON.stringify(cleaned);
+      }
+      customActionsChanging = (customActionsNewVal || null) !== (existing.custom_actions || null);
+      patch.custom_actions = customActionsNewVal;
+    }
     const principalNoteChanging =
       patch.principal_note !== undefined &&
       (patch.principal_note || null) !== (existing.principal_note || null);
@@ -477,6 +560,10 @@ export async function registerRoutes(
       if (undoingDecision) {
         // Wipe delegate name when reverting to awaiting Joe.
         patch.delegate_to = null;
+      } else {
+        // Once a real decision lands, clear any snooze flag — the item
+        // is no longer in the "thinking" pile.
+        if (existing.snoozed_at) patch.snoozed_at = null;
       }
     }
     patch.last_touched_by = actor;
@@ -504,6 +591,7 @@ export async function registerRoutes(
           detail: JSON.stringify({
             decision: updated.decision,
             delegate_to: updated.delegate_to,
+            label: actionLabel,
           }),
         });
       }
@@ -567,6 +655,22 @@ export async function registerRoutes(
         detail: JSON.stringify({ from: existing.category, to: updated.category }),
       });
     }
+    if (customActionsChanging) {
+      let count = 0;
+      try {
+        const parsed = updated.custom_actions ? JSON.parse(updated.custom_actions) : [];
+        if (Array.isArray(parsed)) count = parsed.length;
+      } catch {}
+      storage.logActivity({
+        item_id: updated.id,
+        actor,
+        event: "custom_actions_edited",
+        detail: JSON.stringify({
+          count,
+          cleared: !updated.custom_actions,
+        }),
+      });
+    }
     const detailFields: string[] = [];
     if (patch.sender_name !== undefined && patch.sender_name !== existing.sender_name) {
       detailFields.push("sender_name");
@@ -612,6 +716,53 @@ export async function registerRoutes(
       item_id: updated.id,
       actor: actorForReq(req),
       event: "skipped",
+      detail: null,
+    });
+    res.json(updated);
+  });
+
+  // Snooze: Joe taps a "think about it" button. We mark snoozed_at
+  // and intentionally do NOT set a decision — the item remains in
+  // "Awaiting Joe" buckets while also showing up in the side rail.
+  app.post("/api/items/:id/snooze", requireAuth, (req, res) => {
+    const id = req.params.id as string;
+    const existing = storage.getItem(id);
+    if (!existing) return res.status(404).json({ message: "not found" });
+    const actor = actorForReq(req);
+    const label =
+      typeof req.body?.action_label === "string" && req.body.action_label.trim()
+        ? req.body.action_label.trim().slice(0, 80)
+        : null;
+    const updated = storage.updateItem(id, {
+      snoozed_at: Date.now(),
+      last_touched_by: actor,
+      last_touched_at: Date.now(),
+    } as any);
+    if (!updated) return res.status(500).json({ message: "snooze failed" });
+    storage.logActivity({
+      item_id: id,
+      actor,
+      event: "decision_snoozed",
+      detail: JSON.stringify({ label }),
+    });
+    res.json(updated);
+  });
+
+  app.post("/api/items/:id/unsnooze", requireAuth, (req, res) => {
+    const id = req.params.id as string;
+    const existing = storage.getItem(id);
+    if (!existing) return res.status(404).json({ message: "not found" });
+    const actor = actorForReq(req);
+    const updated = storage.updateItem(id, {
+      snoozed_at: null,
+      last_touched_by: actor,
+      last_touched_at: Date.now(),
+    } as any);
+    if (!updated) return res.status(500).json({ message: "unsnooze failed" });
+    storage.logActivity({
+      item_id: id,
+      actor,
+      event: "decision_unsnoozed",
       detail: null,
     });
     res.json(updated);
@@ -763,6 +914,36 @@ export async function registerRoutes(
           .json({ message: "Claude returned non-JSON", raw });
       }
 
+      // Sanitize Claude's suggested_actions into a clean CustomAction[]
+      // shape before we persist. We tolerate Claude returning slightly
+      // wrong types (missing is_snooze, weird casing, extra fields) by
+      // normalizing each entry and dropping anything we can't fix.
+      const rawSuggested: any[] = Array.isArray(parsedJson.suggested_actions)
+        ? parsedJson.suggested_actions
+        : [];
+      const validDecisions = new Set([
+        "team_to_action",
+        "team_to_decline",
+        "principal_to_respond",
+        "delegate",
+      ]);
+      const cleanedActions = rawSuggested
+        .map((a, i) => {
+          if (!a || typeof a !== "object") return null;
+          const label = String(a.label || "").trim().slice(0, 60);
+          const decision = String(a.decision || "").trim();
+          if (!label) return null;
+          if (!validDecisions.has(decision)) return null;
+          return {
+            id: `act_${i + 1}`,
+            label,
+            decision,
+            is_snooze: Boolean(a.is_snooze),
+          };
+        })
+        .filter((a): a is { id: string; label: string; decision: string; is_snooze: boolean } => a !== null)
+        .slice(0, 4);
+
       const item: InsertItem = {
         date_received:
           parsedJson.date_received || new Date().toISOString().slice(0, 10),
@@ -786,6 +967,7 @@ export async function registerRoutes(
         last_touched_by: null,
         skip_count: 0,
         meeting_tracker_id: null,
+        custom_actions: cleanedActions.length >= 2 ? JSON.stringify(cleanedActions) : null,
       };
       const created = storage.createItem(item);
       storage.logActivity({

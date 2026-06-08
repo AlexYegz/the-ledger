@@ -58,7 +58,9 @@ CREATE TABLE IF NOT EXISTS items (
   skip_count INTEGER NOT NULL DEFAULT 0,
   principal_note TEXT,
   archived_at INTEGER,
-  deleted_at INTEGER
+  deleted_at INTEGER,
+  custom_actions TEXT,
+  snoozed_at INTEGER
 );
 CREATE TABLE IF NOT EXISTS notes (
   id TEXT PRIMARY KEY,
@@ -98,6 +100,12 @@ try {
   }
   if (!has("deleted_at")) {
     sqlite.exec("ALTER TABLE items ADD COLUMN deleted_at INTEGER;");
+  }
+  if (!has("custom_actions")) {
+    sqlite.exec("ALTER TABLE items ADD COLUMN custom_actions TEXT;");
+  }
+  if (!has("snoozed_at")) {
+    sqlite.exec("ALTER TABLE items ADD COLUMN snoozed_at INTEGER;");
   }
 } catch {
   // best-effort

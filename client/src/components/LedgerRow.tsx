@@ -9,6 +9,8 @@ import type { Item, Note, Activity, Category, Status, Decision } from "@shared/s
 import { useAuth } from "@/lib/auth";
 import { sanitizeContextHtml } from "@/lib/sanitize";
 import { useSelection } from "@/lib/selection";
+import { parseCustomActions, snoozeAgeLabel, matchedCustomLabel } from "@/lib/customActions";
+import type { CustomAction } from "@shared/schema";
 
 const STATUSES: Status[] = ["not_started", "in_progress", "waiting", "complete", "canceled"];
 const CATEGORIES: Category[] = [
@@ -200,11 +202,24 @@ export function LedgerRow({
               testId={`select-category-${item.id}`}
             />
           )}
+          {item.snoozed_at && !item.decision && (
+            <span
+              className="snooze-badge"
+              title={snoozeAgeLabel(item.snoozed_at)}
+              data-testid={`snooze-badge-${item.id}`}
+            >
+              THINKING
+            </span>
+          )}
         </div>
       </div>
 
       <div>
-        <DecisionTag decision={item.decision} delegateTo={item.delegate_to} />
+        <DecisionTag
+          decision={item.decision}
+          delegateTo={item.delegate_to}
+          customLabel={matchedCustomLabel(item)}
+        />
       </div>
 
       <div onClick={stop}>
@@ -371,6 +386,42 @@ export function LedgerRow({
               value={item.team_note_for_principal}
               onSave={(v) => patchMut.mutate({ team_note_for_principal: v })}
             />
+          )}
+
+          {!readOnly && (
+            <CustomActionsEditor
+              itemId={item.id}
+              value={item.custom_actions}
+              locked={!!item.decision}
+              onSave={(payload) => patchMut.mutate({ custom_actions: payload as any })}
+            />
+          )}
+
+          {!readOnly && item.snoozed_at && !item.decision && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: 12,
+                fontSize: 12,
+                color: "var(--text-mid)",
+              }}
+            >
+              <span className="snooze-badge">THINKING</span>
+              <span>{snoozeAgeLabel(item.snoozed_at)}</span>
+              <button
+                className="snooze-rail-unsnooze"
+                onClick={() =>
+                  apiRequest("POST", `/api/items/${item.id}/unsnooze`).then(() =>
+                    queryClient.invalidateQueries({ queryKey: ["/api/items"] }),
+                  )
+                }
+                data-testid={`button-row-unsnooze-${item.id}`}
+              >
+                BRING BACK
+              </button>
+            </div>
           )}
 
           {!readOnly && (
@@ -711,6 +762,221 @@ function ContextEditor({
   );
 }
 
+function CustomActionsEditor({
+  itemId,
+  value,
+  locked,
+  onSave,
+}: {
+  itemId: string;
+  value: string | null;
+  locked: boolean;
+  onSave: (payload: string | null) => void;
+}) {
+  const initial = parseCustomActions(value);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<CustomAction[]>(initial);
+
+  // When not editing, follow the live value (so a fresh parse populates the view).
+  if (!editing && JSON.stringify(draft) !== JSON.stringify(initial)) {
+    setDraft(initial);
+  }
+
+  const startEdit = () => {
+    if (locked) return;
+    setDraft(initial.length > 0 ? initial : []);
+    setEditing(true);
+  };
+
+  const addRow = () => {
+    if (draft.length >= 4) return;
+    setDraft([
+      ...draft,
+      {
+        id: `act_${Date.now()}`,
+        label: "",
+        decision: "team_to_action",
+        is_snooze: false,
+      },
+    ]);
+  };
+
+  const removeRow = (idx: number) => {
+    setDraft(draft.filter((_, i) => i !== idx));
+  };
+
+  const updateRow = (idx: number, patch: Partial<CustomAction>) => {
+    setDraft(draft.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+  };
+
+  const commit = () => {
+    const cleaned = draft
+      .map((r) => ({ ...r, label: r.label.trim().slice(0, 60) }))
+      .filter((r) => r.label.length > 0);
+    if (cleaned.length === 0) {
+      onSave(null);
+      setEditing(false);
+      return;
+    }
+    if (cleaned.length < 2) {
+      // Need at least 2 to render — nudge the user.
+      alert("Custom actions need at least 2 buttons. Add another or clear all.");
+      return;
+    }
+    onSave(JSON.stringify(cleaned.slice(0, 4)));
+    setEditing(false);
+  };
+
+  const clearAll = () => {
+    if (!confirm("Clear custom actions and fall back to the generic 4 buttons?")) return;
+    onSave(null);
+    setDraft([]);
+    setEditing(false);
+  };
+
+  const cancel = () => {
+    setDraft(initial);
+    setEditing(false);
+  };
+
+  if (locked && initial.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="custom-actions-editor" data-testid={`custom-actions-${itemId}`}>
+      <div className="custom-actions-editor-head">
+        <span>JOE'S BUTTONS · {initial.length || "GENERIC 4"}</span>
+        {locked ? (
+          <span className="custom-actions-locked">Locked — undo Joe's call to edit</span>
+        ) : !editing ? (
+          <button
+            className="btn-remove"
+            onClick={startEdit}
+            data-testid={`button-edit-custom-actions-${itemId}`}
+          >
+            {initial.length > 0 ? "EDIT" : "CUSTOMIZE"}
+          </button>
+        ) : null}
+      </div>
+
+      {!editing && initial.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {initial.map((a) => (
+            <span
+              key={a.id}
+              className={`decision-tag ${
+                a.decision === "team_to_action"
+                  ? "action"
+                  : a.decision === "team_to_decline"
+                    ? "decline"
+                    : a.decision === "principal_to_respond"
+                      ? "respond"
+                      : "delegate"
+              }`}
+              style={{ opacity: 0.85 }}
+              title={`Routes to ${a.decision.replace(/_/g, " ")}${a.is_snooze ? " (snooze)" : ""}`}
+            >
+              {a.label.toUpperCase()}
+              {a.is_snooze ? " · \u25CB" : ""}
+            </span>
+          ))}
+        </div>
+      )}
+      {!editing && initial.length === 0 && (
+        <div style={{ fontSize: 11, color: "var(--text-dim)" }}>
+          Joe sees the generic 4 buttons. Customize to give him exact next steps.
+        </div>
+      )}
+
+      {editing && (
+        <div>
+          {draft.length === 0 && (
+            <div style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 8 }}>
+              No custom buttons yet — add 2 to 4.
+            </div>
+          )}
+          {draft.map((row, i) => (
+            <div className="custom-actions-row" key={i}>
+              <input
+                type="text"
+                placeholder="e.g. Schedule with Emma"
+                value={row.label}
+                maxLength={60}
+                onChange={(e) => updateRow(i, { label: e.target.value })}
+                data-testid={`input-custom-action-label-${itemId}-${i}`}
+              />
+              <select
+                value={row.decision}
+                onChange={(e) =>
+                  updateRow(i, { decision: e.target.value as Decision })
+                }
+                data-testid={`select-custom-action-decision-${itemId}-${i}`}
+              >
+                <option value="team_to_action">Team to action</option>
+                <option value="team_to_decline">Team to decline</option>
+                <option value="principal_to_respond">Joe to respond</option>
+                <option value="delegate">Delegate</option>
+              </select>
+              <label className="snooze-toggle">
+                <input
+                  type="checkbox"
+                  checked={!!row.is_snooze}
+                  onChange={(e) =>
+                    updateRow(i, {
+                      is_snooze: e.target.checked,
+                      decision: e.target.checked
+                        ? "principal_to_respond"
+                        : row.decision,
+                    })
+                  }
+                  data-testid={`input-custom-action-snooze-${itemId}-${i}`}
+                />
+                snooze
+              </label>
+              <button
+                className="btn-remove"
+                onClick={() => removeRow(i)}
+                data-testid={`button-remove-custom-action-${itemId}-${i}`}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <div className="custom-actions-actions">
+            {draft.length < 4 && (
+              <button
+                onClick={addRow}
+                data-testid={`button-add-custom-action-${itemId}`}
+              >
+                + ADD BUTTON
+              </button>
+            )}
+            <button
+              className="primary"
+              onClick={commit}
+              data-testid={`button-save-custom-actions-${itemId}`}
+            >
+              SAVE
+            </button>
+            <button onClick={cancel} data-testid={`button-cancel-custom-actions-${itemId}`}>
+              CANCEL
+            </button>
+            {initial.length > 0 && (
+              <button
+                onClick={clearAll}
+                data-testid={`button-clear-custom-actions-${itemId}`}
+              >
+                USE GENERIC 4
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TeamNoteEditor({
   itemId,
   value,
@@ -953,7 +1219,19 @@ function humanizeActivity(a: Activity): string {
     case "decision_made": {
       const label = DECISION_LABELS[detail?.decision] || "set a call";
       const dele = detail?.delegate_to ? ` (→ ${detail.delegate_to})` : "";
-      return `${who} set Joe's call to ${label}${dele}.`;
+      const customLabel = detail?.label ? ` (\u201C${detail.label}\u201D)` : "";
+      return `${who} set Joe's call to ${label}${dele}${customLabel}.`;
+    }
+    case "decision_snoozed": {
+      const lbl = detail?.label ? ` (\u201C${detail.label}\u201D)` : "";
+      return `${who} snoozed this for Joe to think about${lbl}.`;
+    }
+    case "decision_unsnoozed":
+      return `${who} brought this back from the snooze pile.`;
+    case "custom_actions_edited": {
+      if (detail?.cleared) return `${who} cleared the custom buttons.`;
+      const n = detail?.count || 0;
+      return `${who} set ${n} custom button${n === 1 ? "" : "s"} for Joe.`;
     }
     case "decision_undone": {
       const from = DECISION_LABELS[detail?.from] || "the previous call";
