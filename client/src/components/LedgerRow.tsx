@@ -8,6 +8,7 @@ import { CATEGORY_LABEL, STATUS_LABEL, STATUS_CLASS, fmtDate, fmtNoteDate, relTi
 import type { Item, Note, Activity, Category, Status, Decision } from "@shared/schema";
 import { useAuth } from "@/lib/auth";
 import { sanitizeContextHtml } from "@/lib/sanitize";
+import { useSelection } from "@/lib/selection";
 
 const STATUSES: Status[] = ["not_started", "in_progress", "waiting", "complete", "canceled"];
 const CATEGORIES: Category[] = [
@@ -34,12 +35,21 @@ export function LedgerRow({
   isInternal,
   readOnly = false,
   scope = "active",
+  selectable = false,
+  visibleIds,
 }: {
   item: Item;
   isInternal: boolean;
   readOnly?: boolean;
   scope?: RowScope;
+  // When true, show the selection checkbox column. Visible-ids is the
+  // ordered list of every row currently rendered around this one
+  // (across sections) so shift-click range selection knows the span.
+  selectable?: boolean;
+  visibleIds?: string[];
 }) {
+  const selection = useSelection();
+  const isSelected = selectable ? selection.has(item.id) : false;
   const [expanded, setExpanded] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
@@ -130,10 +140,32 @@ export function LedgerRow({
 
   return (
     <div
-      className={`ledger-row ${expanded ? "expanded" : ""}`}
+      className={`ledger-row ${expanded ? "expanded" : ""} ${selectable ? "selectable" : ""} ${isSelected ? "selected" : ""}`}
       data-testid={`row-${item.id}`}
       onClick={() => setExpanded((v) => !v)}
     >
+      {selectable && (
+        <div
+          className="row-select"
+          onClick={(e) => {
+            e.stopPropagation();
+            selection.toggle(item.id, {
+              range: e.shiftKey,
+              visibleIds: visibleIds || [],
+            });
+          }}
+          title={isSelected ? "Deselect" : "Select (shift-click for range)"}
+          data-testid={`select-${item.id}`}
+        >
+          <input
+            type="checkbox"
+            checked={isSelected}
+            readOnly
+            tabIndex={-1}
+            aria-label={isSelected ? "Deselect row" : "Select row"}
+          />
+        </div>
+      )}
       <div className="row-date">
         {readOnly ? (
           item.is_time_sensitive ? <FlameIcon className="row-flame" /> : null

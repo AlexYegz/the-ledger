@@ -371,6 +371,69 @@ export async function registerRoutes(
     res.json({ ok: true, item: updated });
   });
 
+  // Bulk action on multiple items. Loops over the ids and applies the
+  // requested action to each. Returns counts of successes and failures
+  // instead of failing the whole batch on one bad id. Same actor flows
+  // through every activity log entry, so capture mode ("x as joe") is
+  // preserved across the batch.
+  app.post("/api/items/bulk", requireAuth, (req, res) => {
+    const schema = z.object({
+      ids: z.array(z.string().min(1)).min(1).max(500),
+      action: z.enum(["archive", "unarchive", "delete", "restore"]),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: "invalid input" });
+    }
+    const { ids, action } = parsed.data;
+    const actor = actorForReq(req);
+    const updated: string[] = [];
+    const skipped: string[] = [];
+
+    for (const id of ids) {
+      const existing = storage.getItem(id);
+      if (!existing) {
+        skipped.push(id);
+        continue;
+      }
+      try {
+        if (action === "archive") {
+          if (existing.archived_at || existing.deleted_at) {
+            skipped.push(id);
+            continue;
+          }
+          storage.archiveItem(id);
+          storage.logActivity({ item_id: id, actor, event: "item_archived", detail: null });
+        } else if (action === "unarchive") {
+          if (!existing.archived_at) {
+            skipped.push(id);
+            continue;
+          }
+          storage.unarchiveItem(id);
+          storage.logActivity({ item_id: id, actor, event: "item_unarchived", detail: null });
+        } else if (action === "delete") {
+          if (existing.deleted_at) {
+            skipped.push(id);
+            continue;
+          }
+          storage.softDeleteItem(id);
+          storage.logActivity({ item_id: id, actor, event: "item_deleted", detail: null });
+        } else if (action === "restore") {
+          if (!existing.deleted_at) {
+            skipped.push(id);
+            continue;
+          }
+          storage.restoreItem(id);
+          storage.logActivity({ item_id: id, actor, event: "item_restored", detail: null });
+        }
+        updated.push(id);
+      } catch {
+        skipped.push(id);
+      }
+    }
+    res.json({ ok: true, updated: updated.length, skipped: skipped.length, updatedIds: updated });
+  });
+
   app.patch("/api/items/:id", requireAuth, async (req, res) => {
     const existing = storage.getItem((req.params.id as string));
     if (!existing) return res.status(404).json({ message: "not found" });

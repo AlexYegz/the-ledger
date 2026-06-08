@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -7,6 +7,8 @@ import { TopBar } from "@/components/TopBar";
 import { HeroBanner } from "@/components/HeroBanner";
 import { LedgerRow } from "@/components/LedgerRow";
 import { ParserModal } from "@/components/ParserModal";
+import { BulkActionBar } from "@/components/BulkActionBar";
+import { SelectionProvider, useSelection } from "@/lib/selection";
 import type { Item } from "@shared/schema";
 
 type Tab = "active" | "archived" | "trash";
@@ -22,6 +24,16 @@ const SORT_LABEL: Record<SortKey, string> = {
 };
 
 export default function WorkspacePage({ readOnly = false }: { readOnly?: boolean }) {
+  // Selection lives inside its own provider so we can pass setMany an
+  // ordered list of visible ids that updates as filters change.
+  return (
+    <SelectionProvider>
+      <WorkspacePageInner readOnly={readOnly} />
+    </SelectionProvider>
+  );
+}
+
+function WorkspacePageInner({ readOnly = false }: { readOnly?: boolean }) {
   // Status (Joe's read-only) view sees active + archived together; team sees one tab at a time.
   const [tab, setTab] = useState<Tab>("active");
   const scope = readOnly ? "all_visible" : tab;
@@ -321,59 +333,154 @@ export default function WorkspacePage({ readOnly = false }: { readOnly?: boolean
           </div>
         </div>
 
-        <div className="ledger-list" data-testid="ledger-list">
-          <div className="ledger-row head">
-            <div className="sortable" onClick={() => { setSort("date"); setDir(sort === "date" && dir === "desc" ? "asc" : "desc"); }}>DATE {sort === "date" && <span className="arrow">{dir === "desc" ? "↓" : "↑"}</span>}</div>
-            <div className="sortable" onClick={() => { setSort("sender"); setDir(sort === "sender" && dir === "asc" ? "desc" : "asc"); }}>NAME / CATEGORY</div>
-            <div className="sortable" onClick={() => { setSort("decision"); setDir(sort === "decision" && dir === "asc" ? "desc" : "asc"); }}>JOE'S CALL</div>
-            <div className="sortable" onClick={() => { setSort("owner"); setDir(sort === "owner" && dir === "asc" ? "desc" : "asc"); }}>OWNER</div>
-            <div className="sortable" onClick={() => { setSort("status"); setDir(sort === "status" && dir === "asc" ? "desc" : "asc"); }}>STATUS</div>
-            <div />
-          </div>
-
-          {itemsQ.isLoading ? (
-            <div className="empty-state">
-              <div className="eb">LOADING…</div>
-            </div>
-          ) : items.length === 0 ? (
-            <div className="empty-state" data-testid="empty-state">
-              <div className="eb">
-                {(itemsQ.data || []).length === 0
-                  ? tab === "archived"
-                    ? "ARCHIVE IS EMPTY"
-                    : tab === "trash"
-                    ? "TRASH IS EMPTY"
-                    : "NO ITEMS YET"
-                  : "NO MATCHES"}
-              </div>
-              <div className="sb">
-                {(itemsQ.data || []).length === 0
-                  ? readOnly
-                    ? "Items will appear here once Meghan or Alexandra adds them."
-                    : tab === "archived"
-                    ? "Archive cards from the Active tab to file them here."
-                    : tab === "trash"
-                    ? "Items deleted from the Active tab live here for 30 days, then are permanently removed."
-                    : "Click ADD TO LEDGER to parse an email or add a row manually."
-                  : "Try clearing filters or adjusting your search."}
-              </div>
-            </div>
-          ) : (
-            items.map((item) => (
-              <LedgerRow
-                key={item.id}
-                item={item}
-                isInternal={isInternal(item.sender_email)}
-                readOnly={readOnly}
-                scope={readOnly ? "all_visible" : tab}
-              />
-            ))
-          )}
-        </div>
+        <WorkspaceList
+          items={items}
+          loading={itemsQ.isLoading}
+          rawCount={(itemsQ.data || []).length}
+          tab={tab}
+          readOnly={readOnly}
+          sort={sort}
+          setSort={setSort}
+          dir={dir}
+          setDir={setDir}
+          isInternal={isInternal}
+        />
       </div>
+
+      {!readOnly && <BulkActionBar tab={tab} />}
 
       <ParserModal open={parserOpen} onClose={() => setParserOpen(false)} />
     </>
+  );
+}
+
+// Extracted so it can read selection context (which lives inside
+// SelectionProvider) and clear it on tab change.
+function WorkspaceList({
+  items,
+  loading,
+  rawCount,
+  tab,
+  readOnly,
+  sort,
+  setSort,
+  dir,
+  setDir,
+  isInternal,
+}: {
+  items: Item[];
+  loading: boolean;
+  rawCount: number;
+  tab: Tab;
+  readOnly: boolean;
+  sort: SortKey;
+  setSort: (s: SortKey) => void;
+  dir: "asc" | "desc";
+  setDir: (d: "asc" | "desc") => void;
+  isInternal: (email: string | null) => boolean;
+}) {
+  const selection = useSelection();
+  const visibleIds = useMemo(() => items.map((i) => i.id), [items]);
+  const allSelected =
+    visibleIds.length > 0 && visibleIds.every((id) => selection.has(id));
+  const someSelected =
+    visibleIds.some((id) => selection.has(id)) && !allSelected;
+
+  // Clear selection when the user switches tabs — prevents accidentally
+  // applying a bulk action to a stale selection from a different tab.
+  useEffect(() => {
+    selection.clear();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  // Esc clears selection.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && selection.count > 0) selection.clear();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selection]);
+
+  const showSelect = !readOnly;
+
+  return (
+    <div
+      className={`ledger-list ${selection.count > 0 ? "has-selection" : ""}`}
+      data-testid="ledger-list"
+    >
+      <div className={`ledger-row head ${showSelect ? "selectable" : ""}`}>
+        {showSelect && (
+          <div
+            className="row-select"
+            onClick={(e) => {
+              e.stopPropagation();
+              selection.setMany(visibleIds, !allSelected);
+            }}
+            title={allSelected ? "Deselect all visible" : "Select all visible"}
+            data-testid="select-all"
+          >
+            <input
+              type="checkbox"
+              checked={allSelected}
+              ref={(el) => {
+                if (el) el.indeterminate = someSelected;
+              }}
+              readOnly
+              tabIndex={-1}
+              aria-label="Select all visible"
+            />
+          </div>
+        )}
+        <div className="sortable" onClick={() => { setSort("date"); setDir(sort === "date" && dir === "desc" ? "asc" : "desc"); }}>DATE {sort === "date" && <span className="arrow">{dir === "desc" ? "↓" : "↑"}</span>}</div>
+        <div className="sortable" onClick={() => { setSort("sender"); setDir(sort === "sender" && dir === "asc" ? "desc" : "asc"); }}>NAME / CATEGORY</div>
+        <div className="sortable" onClick={() => { setSort("decision"); setDir(sort === "decision" && dir === "asc" ? "desc" : "asc"); }}>JOE'S CALL</div>
+        <div className="sortable" onClick={() => { setSort("owner"); setDir(sort === "owner" && dir === "asc" ? "desc" : "asc"); }}>OWNER</div>
+        <div className="sortable" onClick={() => { setSort("status"); setDir(sort === "status" && dir === "asc" ? "desc" : "asc"); }}>STATUS</div>
+        <div />
+      </div>
+
+      {loading ? (
+        <div className="empty-state">
+          <div className="eb">LOADING…</div>
+        </div>
+      ) : items.length === 0 ? (
+        <div className="empty-state" data-testid="empty-state">
+          <div className="eb">
+            {rawCount === 0
+              ? tab === "archived"
+                ? "ARCHIVE IS EMPTY"
+                : tab === "trash"
+                ? "TRASH IS EMPTY"
+                : "NO ITEMS YET"
+              : "NO MATCHES"}
+          </div>
+          <div className="sb">
+            {rawCount === 0
+              ? readOnly
+                ? "Items will appear here once Meghan or Alexandra adds them."
+                : tab === "archived"
+                ? "Archive cards from the Active tab to file them here."
+                : tab === "trash"
+                ? "Items deleted from the Active tab live here for 30 days, then are permanently removed."
+                : "Click ADD TO LEDGER to parse an email or add a row manually."
+              : "Try clearing filters or adjusting your search."}
+          </div>
+        </div>
+      ) : (
+        items.map((item) => (
+          <LedgerRow
+            key={item.id}
+            item={item}
+            isInternal={isInternal(item.sender_email)}
+            readOnly={readOnly}
+            scope={readOnly ? "all_visible" : tab}
+            selectable={showSelect}
+            visibleIds={visibleIds}
+          />
+        ))
+      )}
+    </div>
   );
 }
 

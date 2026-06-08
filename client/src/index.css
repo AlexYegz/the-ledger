@@ -814,6 +814,143 @@ body {
 .ledger-row.head .sortable.active { color: var(--neon); }
 .ledger-row.head .sortable.active .arrow { color: var(--neon); }
 
+/* ====== Row selection (workspace bulk actions) ====== */
+.ledger-row.selectable {
+  grid-template-columns: 32px 92px 1fr 180px 168px 144px 140px;
+}
+.ledger-row.selectable.selected {
+  background: rgba(64, 175, 255, 0.07);
+}
+.ledger-row.selectable.selected::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--neon, #40afff);
+  border-radius: 0 2px 2px 0;
+}
+.row-select {
+  display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.ledger-row:hover .row-select,
+.ledger-row.selected .row-select,
+.ledger-row.has-selection .row-select { opacity: 1; }
+.row-select input[type="checkbox"] {
+  width: 16px; height: 16px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--neon, #40afff);
+}
+/* When *any* row is selected, force checkboxes visible on all rows so
+   it's clear what's selectable. The workspace adds .has-selection on
+   the rows container when selection.count > 0. */
+.ws-rows.has-selection .row-select { opacity: 1; }
+
+/* Section-header "select all visible" checkbox lives in the head row. */
+.ledger-row.head.selectable .row-select { opacity: 1; }
+.ledger-row.head.selectable .row-select input { accent-color: var(--neon, #40afff); }
+
+/* ====== Sticky bulk-action bar ====== */
+.bulk-bar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 24px;
+  z-index: 60;
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-card-deep, #0e1116);
+  border: 1px solid var(--border-hi, #2a313b);
+  border-radius: 999px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.02);
+  font-family: 'Inter', sans-serif;
+  animation: bulk-bar-in 0.18s ease-out;
+}
+@keyframes bulk-bar-in {
+  from { transform: translate(-50%, 16px); opacity: 0; }
+  to { transform: translate(-50%, 0); opacity: 1; }
+}
+.bulk-bar .count {
+  font-weight: 700; font-size: 12px; letter-spacing: 0.06em;
+  color: var(--text);
+  padding-right: 8px;
+  border-right: 1px solid var(--border-c, #1c2127);
+  padding-left: 6px;
+}
+.bulk-bar button {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 13px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--text-mid);
+  font-family: 'Inter', sans-serif; font-weight: 700;
+  font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.bulk-bar button:hover { background: var(--bg-card-hi, #161b22); color: var(--text); }
+.bulk-bar button.danger:hover { color: #ff6b6b; border-color: rgba(255, 107, 107, 0.4); }
+.bulk-bar button.primary:hover { color: var(--neon, #40afff); border-color: rgba(64, 175, 255, 0.4); }
+.bulk-bar button:disabled { opacity: 0.4; cursor: not-allowed; }
+.bulk-bar .divider { width: 1px; height: 18px; background: var(--border-c, #1c2127); }
+
+/* ====== Bulk-delete confirm dialog ====== */
+.bulk-confirm-backdrop {
+  position: fixed; inset: 0; z-index: 70;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex; align-items: center; justify-content: center;
+  animation: fade-in 0.12s ease;
+}
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.bulk-confirm {
+  background: var(--bg-card-deep, #0e1116);
+  border: 1px solid var(--border-hi, #2a313b);
+  border-radius: 12px;
+  padding: 28px 28px 22px;
+  max-width: 420px;
+  width: calc(100% - 48px);
+  font-family: 'Inter', sans-serif;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.bulk-confirm h3 {
+  margin: 0 0 10px;
+  font-size: 16px; font-weight: 700; letter-spacing: 0.02em;
+  color: var(--text);
+}
+.bulk-confirm p {
+  margin: 0 0 22px;
+  font-size: 13px; line-height: 1.5;
+  color: var(--text-mid);
+}
+.bulk-confirm .actions {
+  display: flex; justify-content: flex-end; gap: 10px;
+}
+.bulk-confirm button {
+  padding: 9px 18px;
+  border-radius: 6px;
+  font-family: 'Inter', sans-serif; font-weight: 700;
+  font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+  cursor: pointer;
+  border: 1px solid var(--border-hi, #2a313b);
+  background: transparent;
+  color: var(--text-mid);
+  transition: all 0.12s ease;
+}
+.bulk-confirm button:hover { color: var(--text); background: var(--bg-card-hi, #161b22); }
+.bulk-confirm button.danger {
+  background: #b00020;
+  border-color: #b00020;
+  color: #fff;
+}
+.bulk-confirm button.danger:hover { background: #d11030; border-color: #d11030; }
+.bulk-confirm button:disabled { opacity: 0.5; cursor: not-allowed; }
+
 .row-date {
   font-family: 'Inter', sans-serif; font-size: 11px; letter-spacing: 0.04em;
   color: var(--text-mid);
